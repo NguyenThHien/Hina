@@ -40,11 +40,7 @@ class _HinaAppState extends State<HinaApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Hina',
-      theme: ThemeData(
-        colorSchemeSeed: Colors.indigo,
-        brightness: Brightness.dark,
-        useMaterial3: true,
-      ),
+      theme: ThemeData(useMaterial3: true, fontFamily: 'BeVietnamPro'),
       home: HomeScreen(controller: widget.controller),
     );
   }

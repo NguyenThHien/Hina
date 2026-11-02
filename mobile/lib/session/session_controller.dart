@@ -10,7 +10,21 @@ import 'package:hina_mobile/network/server_event.dart';
 import 'package:hina_mobile/permissions/device_permissions.dart';
 import 'package:hina_mobile/voice/voice_activation.dart';
 
-enum SessionState { init, ready, listening, waiting, disconnected, error }
+enum SessionState {
+  init,
+  needsPermission,
+  permissionBlocked,
+  ready,
+  listening,
+  waiting,
+  disconnected,
+  error,
+}
+
+const _askPermissionMessage =
+    'Hina cần camera để nhìn đường và micro để nghe bạn. Bấm vào màn hình để cấp quyền.';
+const _blockedMessage =
+    'Quyền đang bị chặn. Bấm vào màn hình để mở cài đặt, rồi bật camera và micro.';
 
 /// Khối điều phối trung tâm: quyết định khi nào thu âm, chụp ảnh, gửi, đọc kết quả.
 class SessionController extends ChangeNotifier {
@@ -45,6 +59,7 @@ class SessionController extends ChangeNotifier {
   int _nextRequestId = 1;
   int? _pendingId;
   bool _paused = false;
+  bool _booted = false;
   bool _capturingFrame = false;
   String? _lastAlertKey;
   DateTime? _lastAlertAt;
@@ -60,29 +75,61 @@ class SessionController extends ChangeNotifier {
 
   Future<void> start() async {
     try {
-      if (!await permissions.requestAll()) {
-        _fail('Cần cấp quyền camera và micro để dùng ứng dụng.');
-        return;
-      }
-      _eventSub = network.events.listen(_onEvent);
-      _wakeSub = voice?.onWake.listen((_) {
-        if (_state == SessionState.ready) unawaited(toggleListening());
-      });
-      await voice?.start();
-      await camera.start();
-      await network.connect();
+      await _handlePermission(await permissions.check());
     } on Exception {
       _fail('Không khởi động được ứng dụng.');
     }
   }
 
-  /// Bấm một lần để bắt đầu nói, bấm lần nữa để gửi.
+  /// Một thao tác bấm duy nhất, ý nghĩa tùy trạng thái: cấp quyền, mở cài đặt,
+  /// bắt đầu nói, hoặc gửi.
   Future<void> toggleListening() async {
-    if (_state == SessionState.ready) {
-      await _startListening();
-    } else if (_state == SessionState.listening) {
-      await _finishListening();
+    switch (_state) {
+      case SessionState.needsPermission:
+        await _requestPermissions();
+      case SessionState.permissionBlocked:
+        await permissions.openSettings();
+      case SessionState.ready:
+        await _startListening();
+      case SessionState.listening:
+        await _finishListening();
+      default:
+        break;
     }
+  }
+
+  Future<void> _requestPermissions() async {
+    try {
+      await _handlePermission(await permissions.request());
+    } on Exception {
+      _fail('Không khởi động được ứng dụng.');
+    }
+  }
+
+  Future<void> _handlePermission(PermissionResult result) async {
+    switch (result) {
+      case PermissionResult.granted:
+        _set(SessionState.init, 'Đang khởi động');
+        await _boot();
+      case PermissionResult.denied:
+        _set(SessionState.needsPermission, _askPermissionMessage);
+        _speak(_askPermissionMessage);
+      case PermissionResult.permanentlyDenied:
+        _set(SessionState.permissionBlocked, _blockedMessage);
+        _speak(_blockedMessage);
+    }
+  }
+
+  Future<void> _boot() async {
+    if (_booted) return;
+    _booted = true;
+    _eventSub = network.events.listen(_onEvent);
+    _wakeSub = voice?.onWake.listen((_) {
+      if (_state == SessionState.ready) unawaited(toggleListening());
+    });
+    await voice?.start();
+    await camera.start();
+    await network.connect();
   }
 
   Future<void> pause() async {
@@ -93,6 +140,13 @@ class SessionController extends ChangeNotifier {
   }
 
   Future<void> resume() async {
+    if (_state == SessionState.permissionBlocked) {
+      // Người dùng có thể vừa bật quyền trong Cài đặt; chỉ hành động nếu đã được cấp.
+      if (await permissions.check() == PermissionResult.granted) {
+        await _handlePermission(PermissionResult.granted);
+      }
+      return;
+    }
     if (!_paused) return;
     _paused = false;
     await camera.start();

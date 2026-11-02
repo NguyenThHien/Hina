@@ -21,3 +21,17 @@ uv run ruff check .
 Hoặc `cp .env.example .env`, điền secret, rồi `docker compose up --build`.
 
 Mặc định mọi khối AI là stub (`HINA_ASR=stub`, …). Thêm model thật: viết impl theo Protocol trong `server/src/hina/ai/base.py`, đăng ký ở `ai/registry.py`, đổi biến môi trường.
+
+### Bật TTS thật (FPT.AI)
+Điền vào `server/.env` (xem `.env.example`):
+```
+HINA_TTS=fpt
+HINA_FPT_API_KEY=<key của bạn>
+```
+- Bật mà thiếu key thì server dừng ngay khi khởi động và báo tên biến còn thiếu.
+- TTS gọi thẳng ra API, không qua hàng đợi GPU, để Safety không bị chặn khi chờ mạng. Timeout: `HINA_TTS_TIMEOUT_S` (20 s).
+- TTS lỗi hoặc quá hạn thì app vẫn nhận câu trả lời dạng chữ, chỉ thiếu audio.
+- Code: `server/src/hina/ai/tts/fpt.py`.
+
+### VLM tự fine-tune
+VLM hiện là stub. Khi có model: viết `server/src/hina/ai/vlm/<tên>.py` có `async def answer(self, image, question) -> str`, chạy inference trong `asyncio.to_thread` (blocking), đăng ký ở `ai/registry.py`, bật bằng `HINA_VLM=<tên>`. VLM đã đi qua hàng đợi GPU, nên Safety vẫn được ưu tiên khi dùng chung GPU.

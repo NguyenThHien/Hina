@@ -1,6 +1,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI
 
 from hina.ai.registry import build_services
@@ -11,20 +12,23 @@ from hina.gateway import api, ws
 from hina.orchestrator.router import Orchestrator
 from hina.session.store import InMemoryStore
 
+# Trần cho từng request HTTP ra ngoài; thời gian tổng cho TTS do Orchestrator giới hạn.
+HTTP_TIMEOUT_S = 30.0
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = Settings()  # thiếu HINA_JWT_SECRET thì dừng ngay tại đây
-    ai = build_services(settings)
-    scheduler = GpuScheduler(settings.gpu_queue_size)
-    app.state.container = Container(
-        settings, InMemoryStore(), ai, scheduler, Orchestrator(ai, scheduler)
-    )
-    scheduler.start()
-    try:
-        yield
-    finally:
-        await scheduler.stop()
+    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_S) as http:
+        ai = build_services(settings, http)  # bật fpt mà thiếu key thì dừng tại đây
+        scheduler = GpuScheduler(settings.gpu_queue_size)
+        orchestrator = Orchestrator(ai, scheduler, tts_timeout_s=settings.tts_timeout_s)
+        app.state.container = Container(settings, InMemoryStore(), ai, scheduler, orchestrator)
+        scheduler.start()
+        try:
+            yield
+        finally:
+            await scheduler.stop()
 
 
 def create_app() -> FastAPI:

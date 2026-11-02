@@ -60,10 +60,17 @@ class FakePlayback implements AudioPlayback {
 }
 
 class FakePermissions implements Permissions {
-  FakePermissions(this.granted);
-  final bool granted;
+  FakePermissions(this.onCheck, this.onRequest);
+  PermissionResult onCheck;
+  PermissionResult onRequest;
+  int settingsOpened = 0;
+
   @override
-  Future<bool> requestAll() async => granted;
+  Future<PermissionResult> check() async => onCheck;
+  @override
+  Future<PermissionResult> request() async => onRequest;
+  @override
+  Future<void> openSettings() async => settingsOpened++;
 }
 
 Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 20));
@@ -71,9 +78,11 @@ Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 20));
 void main() {
   late FakeNetwork network;
   late FakePlayback playback;
+  late FakePermissions perms;
 
   SessionController build({
-    bool granted = true,
+    PermissionResult check = PermissionResult.granted,
+    PermissionResult request = PermissionResult.granted,
     Duration requestTimeout = const Duration(seconds: 20),
     Duration alertCooldown = const Duration(seconds: 3),
   }) {
@@ -84,7 +93,7 @@ void main() {
       camera: FakeCamera(),
       capture: FakeCapture(),
       playback: playback,
-      permissions: FakePermissions(granted),
+      permissions: perms = FakePermissions(check, request),
       requestTimeout: requestTimeout,
       alertCooldown: alertCooldown,
       frameInterval: const Duration(hours: 1), // tắt vòng gửi frame định kỳ trong test
@@ -114,12 +123,48 @@ void main() {
     expect(playback.spoken, ['Sẵn sàng']);
   });
 
-  test('enters error state and speaks when permissions are denied', () async {
-    final c = build(granted: false);
+  test('explains and waits for a tap before asking for permissions, then boots', () async {
+    final c = build(check: PermissionResult.denied);
     addTearDown(c.dispose);
+
     await c.start();
-    expect(c.state, SessionState.error);
-    expect(playback.spoken, hasLength(1));
+    expect(c.state, SessionState.needsPermission);
+    expect(playback.spoken.single, contains('camera'));
+
+    await c.toggleListening(); // người dùng bấm -> hiện popup hệ thống -> được cấp
+    network.emit(const ConnectedEvent());
+    await settle();
+    expect(c.state, SessionState.ready);
+  });
+
+  test('stays on the permission screen when the user denies the popup', () async {
+    final c = build(check: PermissionResult.denied, request: PermissionResult.denied);
+    addTearDown(c.dispose);
+
+    await c.start();
+    await c.toggleListening();
+
+    expect(c.state, SessionState.needsPermission);
+  });
+
+  test('permanently denied sends the user to settings and recovers on return', () async {
+    final c = build(
+      check: PermissionResult.permanentlyDenied,
+      request: PermissionResult.permanentlyDenied,
+    );
+    addTearDown(c.dispose);
+
+    await c.start();
+    expect(c.state, SessionState.permissionBlocked);
+
+    await c.toggleListening();
+    expect(perms.settingsOpened, 1);
+
+    perms.onCheck = PermissionResult.granted; // người dùng bật quyền trong Cài đặt
+    await c.resume();
+    network.emit(const ConnectedEvent());
+    await settle();
+    expect(c.state, SessionState.ready);
   });
 
   test('sends image then audio with the same id, speaks matching result, ignores stale ones', () async {

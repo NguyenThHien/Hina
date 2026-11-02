@@ -107,4 +107,5 @@ async def _answer(
     await out.json(
         {"type": "result", "request_id": rid, "intent": reply.intent, "text": reply.text}
     )
-    await out.bytes(encode_frame(Kind.TTS, rid, reply.audio))
+    if reply.audio:
+        await out.bytes(encode_frame(Kind.TTS, rid, reply.audio))

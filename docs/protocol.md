@@ -17,7 +17,7 @@ Header `Authorization: Bearer <token>` (không để token trong query string v�
 |---|---|---|
 | 1 AUDIO | client → server | 1 lượt nói hoàn chỉnh (VAD cắt ở mobile) → chạy ASR→NLU→…→TTS |
 | 2 IMAGE | client → server | 1 frame JPEG; luôn đưa vào Safety, và là ảnh dùng cho request kế tiếp |
-| 3 TTS | server → client | audio phản hồi cho `request_id` tương ứng |
+| 3 TTS | server → client | audio MP3 phản hồi cho `request_id` tương ứng. **Có thể không có** nếu TTS lỗi/quá hạn: khi đó chỉ có `result` dạng chữ |
 
 ### Text (JSON)
 - client → server: `{"type":"ping"}`

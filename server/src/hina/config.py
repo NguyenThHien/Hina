@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,5 +16,11 @@ class Settings(BaseSettings):
     ocr: str = "stub"
     detector: str = "stub"
     depth: str = "stub"
-    vlm: str = "stub"
-    tts: str = "stub"
+    vlm: str = "stub"  # model VLM tự fine-tune sẽ đăng ký ở đây
+    tts: str = "stub"  # "fpt"
+
+    # TTS qua FPT.AI (HINA_TTS=fpt).
+    fpt_api_key: SecretStr | None = None
+    fpt_voice: str = "banmai"
+    fpt_speed: int = 0
+    tts_timeout_s: float = 20
