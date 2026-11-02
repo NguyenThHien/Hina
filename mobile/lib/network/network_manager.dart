@@ -1,0 +1,130 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:math';
+import 'dart:typed_data';
+
+import 'package:http/http.dart' as http;
+import 'package:web_socket_channel/io.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
+
+import 'package:hina_mobile/core/protocol.dart';
+import 'package:hina_mobile/network/server_event.dart';
+
+abstract class NetworkManager {
+  Stream<ServerEvent> get events;
+  bool get isConnected;
+
+  /// Tạo session (HTTPS) rồi mở WSS. Phát [ConnectedEvent] khi sẵn sàng; tự reconnect khi rớt.
+  Future<void> connect();
+  void sendAudio(int requestId, Uint8List pcm);
+  void sendImage(int frameId, Uint8List jpeg);
+  Future<void> close();
+}
+
+class HttpWsNetworkManager implements NetworkManager {
+  HttpWsNetworkManager(this.baseUrl, {http.Client? client}) : _client = client ?? http.Client();
+
+  final String baseUrl;
+  final http.Client _client;
+  final _events = StreamController<ServerEvent>.broadcast();
+
+  WebSocketChannel? _channel;
+  String? _sessionId;
+  String? _token;
+  bool _closed = false;
+  int _attempt = 0;
+  Timer? _retry;
+
+  @override
+  Stream<ServerEvent> get events => _events.stream;
+
+  @override
+  bool get isConnected => _channel != null;
+
+  @override
+  Future<void> connect() {
+    _closed = false;
+    return _open();
+  }
+
+  Future<void> _open() async {
+    try {
+      final res = await _client.post(Uri.parse('$baseUrl/sessions')).timeout(const Duration(seconds: 10));
+      if (res.statusCode != 201) throw HttpException('session ${res.statusCode}');
+      final body = jsonDecode(res.body);
+      if (body case {'session_id': String sessionId, 'token': String token}) {
+        _sessionId = sessionId;
+        _token = token;
+      } else {
+        throw const FormatException('bad session response');
+      }
+
+      final base = Uri.parse(baseUrl);
+      final wsUrl = base.replace(scheme: base.scheme == 'https' ? 'wss' : 'ws', path: '/ws');
+      final channel = IOWebSocketChannel.connect(wsUrl, headers: {'Authorization': 'Bearer ${_token ?? ''}'});
+      await channel.ready;
+
+      _channel = channel;
+      _attempt = 0;
+      _events.add(const ConnectedEvent());
+      channel.stream.listen(
+        _onMessage,
+        onDone: _onDown,
+        onError: (_) => _onDown(),
+        cancelOnError: true,
+      );
+    } on Exception {
+      // mạng/HTTP/timeout/parse: coi như rớt kết nối và thử lại
+      _onDown();
+    }
+  }
+
+  void _onMessage(dynamic message) {
+    if (message is! String) return; // khung TTS binary: tạm bỏ qua, app đọc text bằng TTS cục bộ
+    try {
+      final json = jsonDecode(message);
+      if (json is! Map<String, dynamic>) return;
+      final event = ServerEvent.fromJson(json);
+      if (event != null) _events.add(event);
+    } on Exception {
+      // message sai định dạng: bỏ qua, không làm rớt kết nối
+    }
+  }
+
+  void _onDown() {
+    _channel = null;
+    if (_closed) return;
+    _events.add(const DisconnectedEvent());
+    _retry?.cancel();
+    final delay = Duration(seconds: min(15, 1 << min(_attempt, 4))); // 1,2,4,8,15s
+    _attempt++;
+    _retry = Timer(delay, _open);
+  }
+
+  @override
+  void sendAudio(int requestId, Uint8List pcm) => _channel?.sink.add(encodeFrame(Kind.audio, requestId, pcm));
+
+  @override
+  void sendImage(int frameId, Uint8List jpeg) => _channel?.sink.add(encodeFrame(Kind.image, frameId, jpeg));
+
+  @override
+  Future<void> close() async {
+    _closed = true;
+    _retry?.cancel();
+    final channel = _channel;
+    _channel = null;
+    await channel?.sink.close();
+    if (_sessionId != null && _token != null) {
+      try {
+        await _client.delete(
+          Uri.parse('$baseUrl/sessions/$_sessionId'),
+          headers: {'Authorization': 'Bearer $_token'},
+        ).timeout(const Duration(seconds: 3));
+      } on Exception {
+        // best-effort: token tự hết hạn
+      }
+    }
+    await _events.close();
+  }
+}

@@ -1,0 +1,37 @@
+[project]
+name = "hina-server"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic-settings>=2.4",
+    "pyjwt>=2.9",
+]
+
+# Model thật chỉ thêm vào đây sau khi benchmark chốt (giữ Paddle/PyTorch tách nhau tránh xung đột CUDA).
+[project.optional-dependencies]
+asr = []
+ocr = []
+detect = []
+depth = []
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.27", "ruff>=0.6"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hina"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
