@@ -1,9 +1,13 @@
 import 'dart:typed_data';
 
 import 'package:camera/camera.dart';
+import 'package:flutter/widgets.dart';
 
 abstract class CameraManager {
   Future<void> start();
+
+  /// Hình camera trực tiếp; dùng chung camera với vòng gửi frame cho Safety.
+  Widget preview();
 
   /// JPEG của khung hình hiện tại, null nếu camera chưa sẵn sàng/đang bận.
   Future<Uint8List?> capture();
@@ -12,7 +16,8 @@ abstract class CameraManager {
 
 // ponytail: takePicture đủ cho ~1-2 fps; cần fps cao thì chuyển sang startImageStream + nén JPEG.
 class DeviceCameraManager implements CameraManager {
-  CameraController? _controller;
+  final _live = ValueNotifier<CameraController?>(null);
+  CameraController? get _controller => _live.value;
 
   @override
   Future<void> start() async {
@@ -29,8 +34,14 @@ class DeviceCameraManager implements CameraManager {
       imageFormatGroup: ImageFormatGroup.jpeg,
     );
     await controller.initialize();
-    _controller = controller;
+    _live.value = controller;
   }
+
+  @override
+  Widget preview() => ValueListenableBuilder(
+        valueListenable: _live,
+        builder: (context, c, _) => c == null ? const SizedBox.expand() : CameraPreview(c),
+      );
 
   @override
   Future<Uint8List?> capture() async {
@@ -43,7 +54,7 @@ class DeviceCameraManager implements CameraManager {
   @override
   Future<void> stop() async {
     final c = _controller;
-    _controller = null;
+    _live.value = null;
     await c?.dispose();
   }
 }

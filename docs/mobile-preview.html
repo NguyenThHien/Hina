@@ -1,318 +1,65 @@
 <!doctype html>
 <html lang="vi">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hina: xem trước giao diện mobile</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Hina · Soft Pink Mobile Prototype</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@500;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --blush: #FCE8EE;
-    --petal: #F7C6D3;
-    --plum: #3B0F22;
-    --muted: #6b4656;
-    --frame: #2a1019;
-    --lift: 8px;
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    min-height: 100vh;
-    background: #f3dde4;
-    color: var(--plum);
-    font-family: "Be Vietnam Pro", Roboto, system-ui, sans-serif;
-    font-weight: 500;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: center;
-    gap: 56px;
-    padding: 32px 16px;
-  }
-
-  /* ---- Khung điện thoại ---- */
-  .phone {
-    width: 360px;
-    height: 740px;
-    border: 10px solid var(--frame);
-    border-radius: 46px;
-    overflow: hidden;
-    background: var(--frame);
-    flex: none;
-  }
-  .screen {
-    all: unset;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    height: 100%;
-    padding: 0 24px 28px;
-    background: var(--blush);
-    color: var(--plum);
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .screen:disabled { cursor: default; }
-  .screen:focus-visible { outline: 4px solid var(--plum); outline-offset: -6px; }
-  .clock {
-    display: flex;
-    justify-content: space-between;
-    padding: 8px 0 0;
-    font-size: 13px;
-  }
-
-  .header { display: flex; align-items: center; gap: 6px; margin-top: 18px; }
-  .brand { font-size: 22px; font-weight: 800; margin-left: 2px; }
-  .status { margin-left: auto; display: flex; align-items: center; gap: 8px; font-size: 16px; }
-  .status .dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--plum); }
-  .status .dot.on { background: var(--plum); }
-
-  /* Ô Braille: 2 cột x 3 hàng, chấm 1-2-3 cột trái, 4-5-6 cột phải */
-  .cell {
-    display: grid;
-    grid-template-rows: repeat(3, var(--d));
-    grid-auto-columns: var(--d);
-    grid-auto-flow: column;
-    gap: var(--g);
-  }
-  .cell i { width: var(--d); height: var(--d); border-radius: 50%; background: var(--off); }
-  .cell i.on { background: var(--onc); }
-  .logo .cell { --d: 5px; --g: 3px; --off: var(--petal); --onc: var(--plum); }
-
-  .message {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    margin: 32px 0 24px;
-    font-size: 28px;
-    line-height: 1.3;
-  }
-
-  /* ---- Phím nổi ---- */
-  .key {
-    height: 300px;
-    flex: none;
-    padding: 28px;
-    border: 3px solid var(--plum);
-    border-radius: 44px;
-    background: var(--fill);
-    color: var(--ink);
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    box-shadow: 0 var(--lift) 0 var(--plum);
-    transition: transform 120ms, box-shadow 120ms, background-color 250ms;
-  }
-  .key.flat,
-  .screen:not(:disabled):active .key {
-    transform: translateY(var(--lift));
-    box-shadow: 0 0 0 var(--plum);
-  }
-  .glyph { height: 72px; display: flex; align-items: center; }
-  .glyph svg {
-    width: 64px; height: 64px;
-    fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
-  }
-  .title {
-    margin: 0;
-    font-size: 50px;
-    font-weight: 800;
-    line-height: 1;
-    letter-spacing: -1.5px;
-  }
-
-  /* Đang nghe: sóng âm */
-  .bars { display: flex; align-items: center; gap: 8px; height: 64px; }
-  .bars span {
-    width: 10px; height: 64px; border-radius: 5px; background: currentColor;
-    transform-origin: center; animation: bounce 900ms ease-in-out infinite;
-  }
-  .bars span:nth-child(2) { animation-delay: -160ms; }
-  .bars span:nth-child(3) { animation-delay: -320ms; }
-  .bars span:nth-child(4) { animation-delay: -480ms; }
-  .bars span:nth-child(5) { animation-delay: -640ms; }
-  @keyframes bounce { 0%, 100% { transform: scaleY(.28); } 50% { transform: scaleY(1); } }
-
-  /* Đang xử lý: ô Braille sáng dần 1 → 6 */
-  .loader { --d: 16px; --g: 8px; --off: color-mix(in srgb, currentColor 24%, transparent); --onc: currentColor; }
-
-  /* ---- Bảng bên phải ---- */
-  .panel { max-width: 340px; }
-  .panel h1 { margin: 0 0 10px; font-size: 30px; font-weight: 800; line-height: 1.1; letter-spacing: -.5px; }
-  .panel p { margin: 0 0 20px; color: var(--muted); line-height: 1.55; }
-  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 28px; padding: 0; list-style: none; }
-  .chip {
-    font: inherit;
-    font-size: 15px;
-    padding: 9px 14px;
-    border-radius: 999px;
-    border: 2px solid var(--plum);
-    background: var(--blush);
-    color: var(--plum);
-    cursor: pointer;
-    box-shadow: 0 3px 0 var(--plum);
-    transition: transform 80ms, box-shadow 80ms;
-  }
-  .chip:active, .chip[aria-pressed="true"] { transform: translateY(3px); box-shadow: 0 0 0 var(--plum); }
-  .chip[aria-pressed="true"] { background: var(--plum); color: var(--blush); }
-  .chip:focus-visible { outline: 3px solid #FF5C93; outline-offset: 3px; }
-  .legend { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; font-size: 15px; }
-  .legend li { display: flex; align-items: center; gap: 12px; }
-  .swatch { width: 30px; height: 30px; border-radius: 10px; flex: none; border: 2px solid var(--plum); }
-  .note { font-size: 14px; margin-top: 28px !important; }
-
-  @media (prefers-reduced-motion: reduce) {
-    .key, .chip { transition: none; }
-    .bars span { animation: none; }
-  }
+:root{--ink:#ad8298;--rose:#d3a0b9;--blush:#faedf3;--paper:#fffbfd;--line:#f1e4eb;--ui:'Quicksand','Avenir Next','Segoe UI',sans-serif}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#fcf8fa;color:var(--ink);font-family:var(--ui);font-weight:400}button,input{font:inherit}button{cursor:pointer}button:focus-visible{outline:3px solid #bb7d9d;outline-offset:2px}button:disabled{opacity:.5;cursor:default}
+.workspace{max-width:1130px;margin:22px auto;padding:20px}.mast{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:22px}.mast h1{font-size:25px;font-weight:400;letter-spacing:0;margin:0}.mast p{font-size:13px;margin:6px 0 0}.pill{padding:10px 14px;border-radius:13px;border:1px solid var(--line);background:white;color:var(--ink);font-size:13px}
+.layout{display:grid;grid-template-columns:215px minmax(290px,375px) minmax(180px,1fr);gap:26px;align-items:start}.eyebrow{font-size:11px;letter-spacing:.7px;margin:0 0 12px}.navlist{display:grid;gap:8px}.jump{width:100%;text-align:left;border:1px solid var(--line);background:#fff;border-radius:13px;padding:12px 13px;color:var(--ink);font-size:13px}.jump.current{background:var(--blush);border-color:#eacdda}.sidebar-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:15px;margin-top:18px;font-size:12px;line-height:1.75}.permission-status{display:grid;gap:12px}.permission-status div{display:flex;justify-content:space-between;gap:10px;border-bottom:1px solid var(--line);padding-bottom:9px}.permission-status div:last-child{border:0}
+.device{width:100%;max-width:375px;margin:0 auto;background:var(--paper);border:7px solid #dfc2d1;border-radius:42px;box-shadow:0 20px 50px #bb8da424;overflow:hidden}.phone{--accent:var(--rose);--accentsoft:var(--blush);--text:var(--ink);--font:16px;position:relative;height:755px;background:var(--paper);color:var(--text);font:400 var(--font)/1.5 var(--ui);overflow:hidden}.phone *:not(.android-modal):not(.android-modal *){font-weight:400!important;letter-spacing:0!important}.top-status{height:31px;padding:8px 23px 0;display:flex;align-items:center;justify-content:space-between;font-size:10px}.island{width:86px;height:17px;background:#dfc2d1;border-radius:0 0 15px 15px;position:absolute;top:0;left:50%;transform:translateX(-50%)}.appbar{height:65px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;padding:0 21px}.wordmark{font-size:30px;color:var(--accent);line-height:1}.wordmark .flower{font-size:21px;color:var(--accent)}.toolbar{display:flex;gap:4px}.icon-btn{background:none;border:0;border-radius:12px;height:40px;width:40px;color:var(--text);display:grid;place-items:center}.icon-btn.active{background:var(--accentsoft)}.icon-btn svg{width:21px;height:21px}.page{height:calc(100% - 117px);padding:25px 23px 24px;overflow-y:auto;display:flex;flex-direction:column;scrollbar-width:thin;scrollbar-color:#ead2df transparent}.home-indicator{position:absolute;bottom:9px;left:50%;transform:translateX(-50%);height:4px;width:90px;border-radius:5px;background:#dfc3d1}
+.h-title{text-align:center;font-size:calc(var(--font)*1.62);line-height:1.43;margin:0;color:var(--text)}.hint{text-align:center;font-size:calc(var(--font)*.85);line-height:1.76;margin:13px 0 0;color:var(--text)}.section-label{font-size:calc(var(--font)*.88);margin:0 0 12px;color:var(--text)}.small{font-size:calc(var(--font)*.86);color:var(--text)}.tiny{font-size:calc(var(--font)*.74);color:var(--text)}.actions{display:grid;gap:9px;margin-top:auto;padding-top:18px}.btn{width:100%;min-height:50px;padding:12px 15px;border:1px solid transparent;border-radius:16px;background:var(--accent);color:white;font-size:calc(var(--font)*.85)}.btn.secondary{background:var(--accentsoft);color:var(--text)}.btn.ghost{background:none;color:var(--text)}.btn.outline{background:white;border-color:var(--line);color:var(--text)}
+.art{height:265px;margin:16px 0 22px;display:grid;place-items:center;position:relative}.blob{width:188px;height:188px;border-radius:54% 46% 52% 48%;transform:rotate(-10deg);background:linear-gradient(135deg,#fff4f9,#f3d2e2);display:grid;place-items:center}.face{width:119px;height:119px;transform:rotate(10deg);border-radius:46%;background:#fffafd;display:grid;place-items:center}.face-inner{position:relative;width:58px;height:44px}.face-inner:before,.face-inner:after{content:"";position:absolute;top:7px;height:11px;width:6px;border-radius:8px;background:var(--accent)}.face-inner:before{left:11px}.face-inner:after{right:11px}.smile{position:absolute;left:22px;top:22px;width:14px;height:10px;border:2px solid var(--accent);border-top:0;border-radius:0 0 14px 14px}.progress{display:flex;justify-content:center;gap:7px;margin:13px 0}.progress span{width:6px;height:6px;border-radius:9px;background:#edd8e2}.progress span.on{width:24px;background:var(--accent)}
+.permission-row,.setting-card,.tile,.feature-shortcut{border:1px solid var(--line);background:white;border-radius:18px;color:var(--text)}.permission-row{display:flex;align-items:center;gap:12px;text-align:left;width:100%;padding:13px;margin:6px 0;min-height:74px}.symbol{height:46px;width:46px;border-radius:15px;display:grid;place-items:center;flex-shrink:0;background:var(--accentsoft)}.symbol svg{width:23px;height:23px}.row-content{flex:1}.row-content .tiny{display:block;margin-top:5px;line-height:1.5}.hero{padding:18px;border-radius:23px;background:linear-gradient(135deg,#fff0f6,#f6dce9);margin:23px 0}.hero-top{display:flex;align-items:center;gap:13px}.tile-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.tile{min-height:109px;padding:14px 12px;display:flex;flex-direction:column;justify-content:space-between;align-items:flex-start;text-align:left}.tile svg{width:25px;height:25px}.feature-shortcut{width:100%;display:flex;align-items:center;text-align:left;gap:12px;padding:12px;margin-top:12px}.setting-card{padding:14px;margin:7px 0}.swatches{display:flex;gap:14px;margin-top:12px}.swatch{width:33px;height:33px;border:3px solid #fff;border-radius:50%;outline:1px solid #e5cedc}.swatch.selected{outline:2px solid #b982a2}.sizes{display:flex;gap:7px;margin-top:11px}.size{flex:1;border:1px solid var(--line);background:#fff;border-radius:11px;padding:10px 0;color:var(--text);font-size:12px}.size.selected{background:var(--accentsoft)}.switch{width:41px;height:24px;border:0;border-radius:20px;background:#e4d4dc;position:relative;flex-shrink:0}.switch.on{background:var(--accent)}.switch:after{content:"";position:absolute;width:18px;height:18px;background:#fff;left:3px;top:3px;border-radius:50%}.switch.on:after{left:20px}
+.preview{position:relative;overflow:hidden;height:275px;border-radius:20px;background:#f5e7ed;margin:18px 0 12px}.preview video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none}.preview .street{position:absolute;inset:0;background:linear-gradient(#f7e5e9 0 57%,#e5d4ce 57%)}.building{position:absolute;bottom:40%;height:36%;width:35%;background:#e4bcc8}.window{width:19px;height:25px;background:#fff7f6;border:2px solid #fff;position:absolute;top:17%;left:17%}.window.two{left:auto;right:15%}.shop{position:absolute;bottom:31%;left:34%;height:27%;width:32%;background:#fff5ee;border:5px solid #cea8b3;display:grid;place-items:center;font-size:13px}.focus{position:absolute;left:21%;top:27%;width:58%;height:45%;border:2px solid white;border-radius:12px;pointer-events:none}.preview-tag{position:absolute;left:11px;top:11px;background:#fffdfdec;border-radius:11px;padding:6px 10px;font-size:10px}.split{display:flex;gap:9px}.split button{flex:1}.rec-circle{height:170px;width:170px;border-radius:50%;background:#f7e4ee;display:grid;place-items:center;margin:32px auto 19px;border:1px solid #efd8e4}.rec-circle div{height:121px;width:121px;border-radius:50%;background:white;display:grid;place-items:center}.rec-circle svg{width:43px;height:43px}.timer{text-align:center;font-size:31px}.wave{height:76px;display:flex;justify-content:center;align-items:center;gap:4px}.wave span{width:4px;height:13px;background:var(--accent);border-radius:5px}.wave.active span{animation:wave 1s ease-in-out infinite alternate}.wave.active span:nth-child(2n){animation-delay:.25s}.wave.active span:nth-child(3n){animation-delay:.55s}@keyframes wave{to{height:49px}}audio{width:100%;margin-top:11px}
+.overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:#4e374573;padding:19px;z-index:10}.dialog{width:100%;background:var(--paper);border-radius:27px;padding:23px 20px 19px;box-shadow:0 13px 30px #52384923}.dialog-symbol{margin:0 auto 17px;height:57px;width:57px;border-radius:19px;background:var(--accentsoft);display:grid;place-items:center}.dialog-symbol svg{width:28px;height:28px}.dialog-title{font-size:21px;text-align:center;line-height:1.4}.dialog-text{font-size:13px;text-align:center;line-height:1.75;margin:12px 0 19px}.dialog-actions{display:grid;gap:8px}.guide-box{background:var(--accentsoft);border-radius:14px;padding:13px;margin:0 0 17px;font-size:12px;line-height:1.9;text-align:left}.android-modal{background:#f3f1f8;color:#282630!important;font-family:Roboto,'Segoe UI',sans-serif!important;border-radius:28px;padding:24px 20px 21px;width:100%}.android-modal *{color:#282630!important;font-family:Roboto,'Segoe UI',sans-serif!important}.android-modal h2{font-size:18px;line-height:1.45;text-align:center;font-weight:550;margin:13px 0 22px}.android-btn{background:#d5e4fb;border:0;border-radius:30px;min-height:45px;padding:10px;width:100%;font-size:13px;margin-top:8px}.android-btn.deny{background:#e3e1e9}.android-label{text-align:center;font-size:10px;margin-top:13px;color:#77717e!important}
+@media(max-width:900px){.layout{grid-template-columns:180px minmax(290px,375px)}.notes{grid-column:1/-1}}@media(max-width:600px){.workspace{padding:10px;margin:10px auto}.layout{grid-template-columns:1fr}.main{order:0}.sidebar{order:1}.notes{order:2}.navlist{grid-template-columns:1fr 1fr}.phone{height:695px}}@media(prefers-reduced-motion:reduce){.wave.active span{animation:none}}
 </style>
 </head>
 <body>
-
-<div class="phone">
-  <button class="screen" id="screen" type="button">
-    <div class="clock" aria-hidden="true"><span>9:41</span><span>5G ▮▮▮</span></div>
-    <div class="header">
-      <span class="logo" id="logo" aria-hidden="true" style="display:flex;gap:6px"></span>
-      <span class="brand">Hina</span>
-      <span class="status"><span class="dot" id="dot"></span><span id="conn"></span></span>
-    </div>
-    <p class="message" id="message"></p>
-    <div class="key" id="key">
-      <div class="glyph" id="glyph" aria-hidden="true"></div>
-      <h2 class="title" id="title"></h2>
-    </div>
-  </button>
-</div>
-
-<aside class="panel">
-  <h1>Hina, chấm nổi</h1>
-  <p>Một phím lớn duy nhất, nổi lên như phím bấm thật và lún xuống khi chạm. Bấm vào điện thoại để thử luồng hỏi đáp, hoặc chọn trạng thái bên dưới.</p>
-  <ul class="chips" id="chips"></ul>
-  <ul class="legend">
-    <li><span class="swatch" style="background:#F48FB1"></span>Hồng, nổi: bấm được</li>
-    <li><span class="swatch" style="background:#FF5C93"></span>Hồng tươi, sóng âm: đang nghe</li>
-    <li><span class="swatch" style="background:#D9B8C7"></span>Tím hồng, nằm phẳng: đang bận</li>
-    <li><span class="swatch" style="background:#A31545"></span>Dâu: lỗi hoặc mất kết nối</li>
-  </ul>
-  <p class="note">Logo là "hina" viết bằng chữ nổi Braille. Khi đang xử lý, sáu chấm của một ô Braille sáng dần. Bản HTML này là mô phỏng; app thật còn đọc to mọi thông báo bằng giọng nói.</p>
-</aside>
-
+<div class="workspace"><header class="mast"><div><h1>hina ✿ <span style="font-size:13px">· Soft Pink Prototype</span></h1><p>Thiết kế tương tác · Onboarding → Cấp quyền → Trang chủ → Camera / Ghi âm → Cài đặt</p></div><button class="pill" id="reset">↺ Bắt đầu lại</button></header>
+<div class="layout"><aside class="sidebar"><p class="eyebrow">Màn hình</p><div class="navlist" id="navigator"></div><div class="sidebar-card">Tất cả chữ trong giao diện Hina sử dụng cùng màu hồng nâu và font Quicksand Regular 400. Hướng dẫn được căn giữa, thanh điều hướng nằm trên AppBar.</div></aside>
+<main class="main"><div class="device"><div class="phone" id="phone"><div class="island"></div><div class="top-status"><span>9:41</span><span>◆ ▰▰</span></div><div class="appbar"><span class="wordmark">hina <span class="flower">✿</span></span><div class="toolbar" id="toolbar"></div></div><div class="page" id="page"></div><div class="home-indicator"></div><div id="modal"></div></div></div><p style="font-size:11px;text-align:center">Mô phỏng Android · Các quyền trong prototype không cấp quyền cho ứng dụng thật</p></main>
+<aside class="notes"><p class="eyebrow">Trạng thái quyền</p><div class="sidebar-card permission-status" id="permstatus"></div><div class="sidebar-card">Bạn có thể nhấn vào từng quyền, chọn “Không cho phép” hai lần và thử lại. Lần thứ ba Hina sẽ hướng dẫn mở Cài đặt. Popup hệ thống Android là bản mô phỏng, không phải hộp thoại hệ thống thực.</div><div class="sidebar-card">Camera và ghi âm có chế độ mẫu. Nút dùng thiết bị thật sẽ yêu cầu quyền của trình duyệt, nếu trình duyệt hỗ trợ HTTPS hoặc localhost.</div></aside></div></div>
 <script>
-  const ICONS = {
-    mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
-    lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/>',
-    gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/>',
-    wifiOff: '<path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M3 3l18 18"/><circle cx="12" cy="19.5" r="1"/>',
-    error: '<circle cx="12" cy="12" r="9"/><path d="M12 7v6"/><circle cx="12" cy="16.5" r=".6"/>',
-  };
-  const ROSE = "#F48FB1", HOT = "#FF5C93", MAUVE = "#D9B8C7", BERRY = "#A31545";
-  const PLUM = "#3B0F22", WHITE = "#FFFFFF";
-
-  const STATES = {
-    init:              { label: "Khởi động",     fill: MAUVE, ink: PLUM,  glyph: "loader", title: "Đang khởi động", msg: "Đang khởi động", on: false },
-    needsPermission:   { label: "Cần cấp quyền", fill: ROSE,  ink: PLUM,  glyph: "lock",   title: "Cấp quyền", msg: "Hina cần camera để nhìn đường và micro để nghe bạn. Bấm vào màn hình để cấp quyền.", on: false, tap: true },
-    permissionBlocked: { label: "Quyền bị chặn", fill: BERRY, ink: WHITE, glyph: "gear",   title: "Mở cài đặt", msg: "Quyền đang bị chặn. Bấm vào màn hình để mở cài đặt, rồi bật camera và micro.", on: false, tap: true },
-    ready:             { label: "Sẵn sàng",      fill: ROSE,  ink: PLUM,  glyph: "mic",    title: "Bấm để hỏi", msg: "Sẵn sàng", on: true, tap: true },
-    listening:         { label: "Đang nghe",     fill: HOT,   ink: PLUM,  glyph: "bars",   title: "Đang nghe", msg: "Đang nghe, bấm lần nữa để gửi", on: true, tap: true },
-    waiting:           { label: "Đang xử lý",    fill: MAUVE, ink: PLUM,  glyph: "loader", title: "Đang xử lý", msg: "Đang xử lý", on: true },
-    result:            { label: "Có kết quả",    fill: ROSE,  ink: PLUM,  glyph: "mic",    title: "Bấm để hỏi", msg: "Biển hiệu ghi: Nhà thuốc Minh Châu, mở cửa 7 giờ đến 22 giờ.", on: true, tap: true },
-    disconnected:      { label: "Mất kết nối",   fill: BERRY, ink: WHITE, glyph: "wifiOff",title: "Mất kết nối", msg: "Mất kết nối, đang thử lại", on: false },
-    error:             { label: "Lỗi",           fill: BERRY, ink: WHITE, glyph: "error",  title: "Có lỗi", msg: "Không khởi động được ứng dụng.", on: false },
-  };
-
-  const $ = (id) => document.getElementById(id);
-
-  function cell(dots, cls) {
-    const c = document.createElement("span");
-    c.className = "cell " + cls;
-    for (let n = 1; n <= 6; n++) {
-      const i = document.createElement("i");
-      if (dots.includes(n)) i.className = "on";
-      c.appendChild(i);
-    }
-    return c;
-  }
-
-  // "hina" bằng chữ nổi Braille: h = 1,2,5  i = 2,4  n = 1,3,4,5  a = 1
-  [[1, 2, 5], [2, 4], [1, 3, 4, 5], [1]].forEach((d) => $("logo").appendChild(cell(d, "")));
-
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  let loaderTick = null;
-
-  function glyph(name) {
-    const g = $("glyph");
-    g.innerHTML = "";
-    clearInterval(loaderTick);
-    if (name === "bars") {
-      g.innerHTML = '<span class="bars"><span></span><span></span><span></span><span></span><span></span></span>';
-    } else if (name === "loader") {
-      // Sáu chấm sáng dần 1 → 6 rồi lặp lại (giảm chuyển động: sáng cả 6)
-      const dots = cell(reduceMotion ? [1, 2, 3, 4, 5, 6] : [], "loader");
-      g.appendChild(dots);
-      if (!reduceMotion) {
-        let lit = 0;
-        loaderTick = setInterval(() => {
-          lit = (lit + 1) % 7;
-          dots.querySelectorAll("i").forEach((d, idx) => d.classList.toggle("on", idx < lit));
-        }, 200);
-      }
-    } else {
-      g.innerHTML = `<svg viewBox="0 0 24 24">${ICONS[name]}</svg>`;
-    }
-  }
-
-  let current = "needsPermission";
-  let timer = null;
-
-  function go(key, { auto = false } = {}) {
-    clearTimeout(timer);
-    current = key;
-    const s = STATES[key];
-    const k = $("key");
-    k.style.setProperty("--fill", s.fill);
-    k.style.setProperty("--ink", s.ink);
-    k.classList.toggle("flat", !s.tap);
-    glyph(s.glyph);
-    $("screen").disabled = !s.tap;
-    $("dot").className = "dot" + (s.on ? " on" : "");
-    $("conn").textContent = s.on ? "Đã kết nối" : "Chưa kết nối";
-    $("message").textContent = s.msg;
-    $("title").textContent = s.title;
-    document.querySelectorAll(".chip").forEach((c) =>
-      c.setAttribute("aria-pressed", String(c.dataset.key === key)));
-
-    // Mô phỏng phản hồi của hệ điều hành / server
-    if (key === "init" && auto) timer = setTimeout(() => go("ready"), 1400);
-    if (key === "waiting" && auto) timer = setTimeout(() => go("result"), 2200);
-  }
-
-  $("screen").addEventListener("click", () => {
-    switch (current) {
-      case "needsPermission":
-      case "permissionBlocked": go("init", { auto: true }); break;
-      case "ready":
-      case "result": go("listening"); break;
-      case "listening": go("waiting", { auto: true }); break;
-    }
-  });
-
-  Object.entries(STATES).forEach(([key, s]) => {
-    const li = document.createElement("li");
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "chip";
-    b.dataset.key = key;
-    b.textContent = s.label;
-    b.addEventListener("click", () => go(key));
-    li.appendChild(b);
-    $("chips").appendChild(li);
-  });
-
-  go("needsPermission");
+(()=>{
+const $=id=>document.getElementById(id);
+const symbols={home:'<path d="m3 10 9-7 9 7v10H3zM9 20v-7h6v7"/>',settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M19 5l-2 2M7 17l-2 2"/>',mic:'<rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8"/>',camera:'<rect x="2" y="5" width="20" height="15" rx="3"/><circle cx="12" cy="12" r="4"/>',notifications:'<path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/>',text:'<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',scene:'<rect x="2" y="3" width="20" height="18" rx="3"/><circle cx="8" cy="8" r="2"/><path d="m3 18 6-6 4 4 3-3 5 5"/>',locate:'<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/>',distance:'<path d="M3 12h18M7 8l-4 4 4 4m10-8 4 4-4 4"/>',heart:'<path d="M20 5a5 5 0 0 0-7 0l-1 1-1-1a5 5 0 0 0-7 7l8 8 8-8a5 5 0 0 0 0-7z"/>'};
+const svg=k=>`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${symbols[k]||symbols.heart}</svg>`;
+const stages=[['welcome','Giới thiệu 1'],['intro2','Giới thiệu 2'],['intro3','Giới thiệu 3'],['permissions','Xin quyền'],['home','Trang chủ'],['camera','Camera'],['record','Ghi âm'],['settings','Cài đặt']];
+const permLabels={mic:'Microphone',camera:'Camera',notifications:'Thông báo'};
+const colors={pink:['#d3a0b9','#faedf3'],rose:['#c896ab','#fae9f0'],peach:['#cda8a4','#faefec'],lavender:['#b3a4cd','#f2edfa']};
+const initial=()=>({page:'welcome',modal:null,permission:null,grant:{mic:false,camera:false,notifications:false},denials:{mic:0,camera:0,notifications:0},color:'pink',font:16,contrast:false,voice:true,preview:'sample',recording:false,seconds:0,recorded:false,pending:null,mediaMessage:'',feature:'text'});
+let state=initial(),mediaStream=null,mediaRecorder=null,recordChunks=[],audioUrl=null,interval=null;
+const button=(label,action,variant='')=>`<button class="btn ${variant}" data-action="${action}">${label}</button>`;
+const dots=i=>`<div class="progress">${[0,1,2].map(n=>`<span class="${i===n?'on':''}"></span>`).join('')}</div>`;
+const art=i=>`<div class="art"><div class="blob"><div class="face">${i===0?'<div class="face-inner"><span class="smile"></span></div>':svg(i===1?'mic':'heart')}</div></div></div>`;
+function introduction(i){const lines=[['Mình là Hina, rất vui được gặp bạn.','Một người bạn nhỏ luôn sẵn sàng đồng hành cùng bạn.'],['Bạn cứ nói, mình sẽ lắng nghe.','Đọc chữ, tìm đồ vật và mô tả những gì đang ở trước mặt.'],['Mỗi ngày một chút dễ dàng hơn.','Cùng chuẩn bị vài thiết lập nhỏ để bắt đầu nhé.']][i];return `<div style="margin-top:25px">${art(i)}<h2 class="h-title">${lines[0]}</h2><p class="hint">${lines[1]}</p></div><div class="actions">${dots(i)}${button(i===2?'Thiết lập Hina':'Tiếp tục','next')}${button('Bỏ qua giới thiệu','skip','ghost')}</div>`;}
+function permissionPage(){return `<div style="margin:25px 0 20px"><h2 class="h-title">Hina xin phép bạn một chút nhé.</h2><p class="hint">Bạn có thể cấp quyền khi cần sử dụng các tính năng tương ứng.</p></div>${Object.keys(permLabels).map(k=>`<button class="permission-row" data-perm="${k}"><span class="symbol">${svg(k)}</span><span class="row-content"><span class="small">${permLabels[k]}</span><span class="tiny">${{mic:'Nghe lời nói của bạn',camera:'Đọc chữ và quan sát môi trường',notifications:'Nhận những lời nhắc hữu ích'}[k]}</span></span><span>${state.grant[k]?'✓':'›'}</span></button>`).join('')}<div class="actions">${button('Vào trang chủ','home')}${button('Để sau','home','ghost')}</div>`;}
+function homepage(){return `<div style="margin-top:18px"><h2 class="h-title">Hôm nay bạn cần mình giúp gì?</h2><p class="hint">Hina luôn ở đây để lắng nghe.</p></div><div class="hero"><div class="hero-top"><span class="symbol" style="background:white;width:51px;height:51px">${svg('mic')}</span><span><span class="small">Gọi Hina nhé!</span><span class="tiny" style="display:block">Bắt đầu trò chuyện</span></span></div><div style="margin-top:17px">${button('Bắt đầu trò chuyện','openRecord')}</div></div><p class="section-label">Hina có thể giúp bạn</p><div class="tile-grid">${[['text','Đọc văn bản'],['scene','Mô tả cảnh vật'],['locate','Tìm đồ vật'],['distance','Ước lượng khoảng cách']].map(([k,v])=>`<button class="tile" data-feature="${k}">${svg(k)}<span class="small">${v}</span></button>`).join('')}</div><button class="feature-shortcut" data-go="camera"><span class="symbol">${svg('camera')}</span><span class="small" style="flex:1">Mở camera</span><span>›</span></button>`;}
+function cameraPage(){return `<div style="margin-top:14px"><h2 class="h-title">Hina đang nhìn cùng bạn.</h2><p class="hint">Hướng camera đến điều bạn muốn quan sát.</p></div><div class="preview"><div class="street" id="street"><div class="building" style="left:7%"><div class="window"></div><div class="window two"></div></div><div class="building" style="right:7%;height:48%"><div class="window"></div><div class="window two"></div></div><div class="shop">CAFE</div></div><video id="camera-video" autoplay muted playsinline></video><div class="focus"></div><span class="preview-tag" id="camera-label">KHUNG HÌNH MẪU</span></div><p class="hint" id="camera-message" style="font-size:12px;margin:0 0 13px">${state.mediaMessage||'Đang hiển thị hình minh họa'}</p><div class="split">${button('Bật camera thật','liveCamera','secondary')}${button('Xem mẫu','sampleCamera','secondary')}</div><div class="actions">${button('Ghi âm câu hỏi','openRecord')}${button('Về trang chủ','home','ghost')}</div>`;}
+const time=n=>String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0');
+function recordPage(){return `<div style="margin-top:19px"><h2 class="h-title">Mình đang lắng nghe bạn.</h2><p class="hint">Nói điều bạn cần Hina giúp nhé.</p></div><div class="rec-circle"><div>${svg('mic')}</div></div><div class="timer" id="rec-time">${time(state.seconds)}</div><div class="wave ${state.recording?'active':''}">${Array.from({length:21},()=>'<span></span>').join('')}</div><p class="hint" style="font-size:12px;margin:3px 0 0" id="rec-status">${state.recording?'Đang ghi âm...':state.recorded?'Đã hoàn thành ghi âm':'Sẵn sàng ghi âm'}</p><div id="rec-playback">${state.recorded&&audioUrl?`<audio controls src="${audioUrl}"></audio>`:''}</div><div class="actions">${button(state.recording?'Dừng ghi âm':state.recorded?'Ghi âm lại':'Bắt đầu ghi âm',state.recording?'stopRecording':'startRecording')}${button('Xem sóng âm mẫu','sampleRecording','secondary')}${button('Về trang chủ','home','ghost')}</div>`;}
+function settingsPage(){return `<div style="margin:17px 0 23px"><h2 class="h-title">Hina theo cách bạn thích.</h2></div><div class="setting-card"><div class="small">Màu giao diện</div><div class="swatches">${Object.keys(colors).map(k=>`<button class="swatch ${state.color===k?'selected':''}" aria-label="Màu ${k}" data-color="${k}" style="background:${colors[k][0]}"></button>`).join('')}</div></div><div class="setting-card"><div class="small">Cỡ chữ</div><div class="sizes">${[14,16,19,22].map((n,i)=>`<button class="size ${state.font===n?'selected':''}" data-font="${n}">${['Nhỏ','Vừa','Lớn','XL'][i]}</button>`).join('')}</div></div><div class="setting-card" style="display:flex;align-items:center;justify-content:space-between;gap:10px"><span><span class="small">Độ tương phản cao</span><span class="tiny" style="display:block">Để đọc chữ rõ hơn</span></span><button class="switch ${state.contrast?'on':''}" data-action="contrast" aria-label="Bật tắt độ tương phản" aria-pressed="${state.contrast}"></button></div><div class="setting-card" style="display:flex;align-items:center;justify-content:space-between;gap:10px"><span class="small">Hướng dẫn bằng giọng nói</span><button class="switch ${state.voice?'on':''}" data-action="voice" aria-label="Bật tắt hướng dẫn" aria-pressed="${state.voice}"></button></div><button class="feature-shortcut" data-go="permissions"><span class="symbol">${svg('camera')}</span><span class="small" style="flex:1">Quản lý quyền truy cập</span><span>›</span></button>`;}
+const views={welcome:()=>introduction(0),intro2:()=>introduction(1),intro3:()=>introduction(2),permissions:permissionPage,home:homepage,camera:cameraPage,record:recordPage,settings:settingsPage};
+function render(){const p=$('phone');p.style.setProperty('--accent',colors[state.color][0]);p.style.setProperty('--accentsoft',colors[state.color][1]);p.style.setProperty('--text',state.contrast?'#725267':'#ad8298');p.style.setProperty('--font',state.font+'px');$('toolbar').innerHTML=`<button class="icon-btn ${state.page==='home'?'active':''}" data-go="home" title="Trang chủ" aria-label="Trang chủ">${svg('home')}</button><button class="icon-btn ${state.page==='settings'?'active':''}" data-go="settings" title="Cài đặt" aria-label="Cài đặt">${svg('settings')}</button>`;$('page').innerHTML=views[state.page]();$('navigator').innerHTML=stages.map(([id,label],i)=>`<button class="jump ${state.page===id?'current':''}" data-go="${id}">${String(i+1).padStart(2,'0')} · ${label}</button>`).join('');$('permstatus').innerHTML=Object.keys(permLabels).map(k=>`<div><span>${permLabels[k]}</span><span>${state.grant[k]?'Đã cấp':`${state.denials[k]} lần từ chối`}</span></div>`).join('');renderModal();if(state.page==='camera'&&mediaStream?.getVideoTracks().length)attachVideo();}
+function request(k){state.permission=k;state.modal=state.denials[k]>=2?'guide':'rationale';render();}
+function renderModal(){const node=$('modal');if(!state.modal){node.innerHTML='';return;}const k=state.permission;const explanation={mic:'Hina cần microphone để lắng nghe lời nói và câu hỏi của bạn trong lúc trò chuyện.',camera:'Hina cần camera để đọc chữ, nhận biết đồ vật và quan sát cảnh vật.',notifications:'Hina muốn gửi các thông báo nhắc nhở khi bạn lựa chọn nhận.'};const dialog=(title,text,buttons,extra='')=>`<div class="dialog" role="dialog" aria-modal="true" aria-label="${title}"><div class="dialog-symbol">${svg(k)}</div><div class="dialog-title">${title}</div><p class="dialog-text">${text}</p>${extra}<div class="dialog-actions">${buttons}</div></div>`;let content='';if(state.modal==='rationale')content=dialog(`Hina xin phép dùng ${permLabels[k].toLowerCase()} nhé?`,explanation[k],button('Đồng ý, tiếp tục','systemPrompt')+button('Để sau','close','ghost'));if(state.modal==='system')content=`<div class="android-modal" role="dialog" aria-modal="true"><h2>${k==='notifications'?'Cho phép Hina gửi thông báo?':`Cho phép Hina ${k==='mic'?'ghi âm':'chụp ảnh và quay video'}?`}</h2><button class="android-btn" data-action="allow">${k==='notifications'?'Cho phép':'Trong khi dùng ứng dụng'}</button>${k!=='notifications'?'<button class="android-btn" data-action="allowOnce">Chỉ lần này</button>':''}<button class="android-btn deny" data-action="deny">Không cho phép</button><div class="android-label">ANDROID · MÔ PHỎNG QUYỀN HỆ THỐNG</div></div>`;if(state.modal==='denied')content=dialog(state.denials[k]>=2?'Bạn có thể bật quyền trong Cài đặt':'Bạn có thể thử lại sau nhé.',state.denials[k]>=2?'Bạn đã từ chối quyền này hai lần. Lần tiếp theo Hina sẽ hướng dẫn bạn mở Cài đặt để tự bật quyền.':'Bạn vẫn có thể sử dụng những tính năng không cần quyền này.',button(state.denials[k]>=2?'Xem hướng dẫn':'Đã hiểu',state.denials[k]>=2?'guide':'close')+button('Để sau','close','ghost'));if(state.modal==='guide')content=dialog('Bật quyền trong Cài đặt',`Bạn có thể tự cấp quyền ${permLabels[k]} theo hướng dẫn dưới đây.`,button('Mở Cài đặt mô phỏng','device')+button('Để sau','close','ghost'),`<div class="guide-box">1. Mở Cài đặt trên điện thoại<br>2. Chọn Ứng dụng → Hina → Quyền<br>3. Chọn ${permLabels[k]} → Cho phép</div>`);if(state.modal==='device')content=`<div class="android-modal" role="dialog" aria-modal="true"><div style="font-size:11px;margin-bottom:15px">ANDROID SETTINGS · MÔ PHỎNG</div><h2>Quyền ${permLabels[k]}</h2><button class="android-btn" data-action="allow">Cho phép</button><button class="android-btn deny" data-action="close">Quay lại</button></div>`;node.innerHTML=`<div class="overlay">${content}</div>`;}
+function closeMedia(){if(interval){clearInterval(interval);interval=null;}if(mediaRecorder?.state==='recording'){try{mediaRecorder.stop()}catch(e){}}mediaRecorder=null;if(mediaStream){mediaStream.getTracks().forEach(track=>track.stop());mediaStream=null;}state.recording=false;}
+function clearAudio(){if(audioUrl){URL.revokeObjectURL(audioUrl);audioUrl=null;}}
+function attachVideo(){const v=$('camera-video');if(v&&mediaStream){v.srcObject=mediaStream;v.style.display='block';const t=$('street');if(t)t.style.display='none';const label=$('camera-label');if(label)label.textContent='CAMERA TRỰC TIẾP';v.play().catch(()=>{});}}
+async function liveCamera(){if(state.page!=='camera')return;if(!state.grant.camera){request('camera');return;}closeMedia();if(!navigator.mediaDevices?.getUserMedia){state.mediaMessage='Trình duyệt này không hỗ trợ camera tại đây. Đang xem mẫu.';render();return;}try{mediaStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});state.mediaMessage='Camera trực tiếp đã bật';attachVideo();const info=$('camera-message');if(info)info.textContent=state.mediaMessage;}catch(err){state.mediaMessage='Không truy cập được camera tại đây. Đang xem mẫu.';render();}}
+async function startRecording(){if(!state.grant.mic){request('mic');return;}closeMedia();clearAudio();state.seconds=0;state.recorded=false;if(!navigator.mediaDevices?.getUserMedia||!window.MediaRecorder){state.mediaMessage='Trình duyệt không hỗ trợ ghi âm tại đây';render();const info=$('rec-status');if(info)info.textContent=state.mediaMessage;return;}try{mediaStream=await navigator.mediaDevices.getUserMedia({audio:true});recordChunks=[];mediaRecorder=new MediaRecorder(mediaStream);const recorder=mediaRecorder;recorder.ondataavailable=e=>{if(e.data.size)recordChunks.push(e.data)};recorder.onstop=()=>{if(recordChunks.length)audioUrl=URL.createObjectURL(new Blob(recordChunks,{type:recorder.mimeType||'audio/webm'}));if(mediaStream){mediaStream.getTracks().forEach(t=>t.stop());mediaStream=null;}state.recording=false;state.recorded=true;if(state.page==='record')render();};recorder.start();state.recording=true;render();interval=setInterval(()=>{if(state.page!=='record'){closeMedia();return;}state.seconds++;const t=$('rec-time');if(t)t.textContent=time(state.seconds)},1000);}catch(e){state.recording=false;render();const info=$('rec-status');if(info)info.textContent='Không thể mở microphone. Hãy xem sóng âm mẫu.';}}
+function stopRecording(){if(interval){clearInterval(interval);interval=null;}if(mediaRecorder?.state==='recording')mediaRecorder.stop();else{state.recording=false;state.recorded=true;render();}}
+function act(action){switch(action){case 'next':state.page=state.page==='welcome'?'intro2':state.page==='intro2'?'intro3':'permissions';break;case 'skip':state.page='permissions';break;case 'home':closeMedia();state.page='home';state.modal=null;break;case 'openRecord':closeMedia();state.page='record';if(!state.grant.mic){request('mic');return;}break;case 'liveCamera':liveCamera();return;case 'sampleCamera':closeMedia();state.mediaMessage='Đang hiển thị khung hình minh họa';render();return;case 'startRecording':startRecording();return;case 'stopRecording':stopRecording();return;case 'sampleRecording':closeMedia();state.recorded=false;state.seconds=5;render();$('rec-status').textContent='Sóng âm mẫu · không có file âm thanh';return;case 'contrast':state.contrast=!state.contrast;break;case 'voice':state.voice=!state.voice;break;case 'systemPrompt':state.modal=state.denials[state.permission]>=2?'guide':'system';break;case 'allow':case 'allowOnce':state.grant[state.permission]=true;state.modal=null;break;case 'deny':state.denials[state.permission]++;state.modal='denied';break;case 'guide':state.modal='guide';break;case 'device':state.modal='device';break;case 'close':state.modal=null;break;}render();}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-action],[data-go],[data-perm],[data-feature],[data-color],[data-font],#reset');if(!b)return;if(b.id==='reset'){closeMedia();clearAudio();state=initial();render();return;}if(b.dataset.go){closeMedia();state.page=b.dataset.go;state.modal=null;render();return;}if(b.dataset.perm){request(b.dataset.perm);return;}if(b.dataset.feature){closeMedia();state.feature=b.dataset.feature;state.page='camera';if(!state.grant.camera){request('camera');return;}render();return;}if(b.dataset.color){state.color=b.dataset.color;render();return;}if(b.dataset.font){state.font=Number(b.dataset.font);render();return;}if(b.dataset.action)act(b.dataset.action);});
+window.addEventListener('pagehide',()=>{closeMedia();clearAudio()});render();
+})();
 </script>
 </body>
 </html>

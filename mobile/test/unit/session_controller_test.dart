@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hina_mobile/audio/audio_capture.dart';
 import 'package:hina_mobile/audio/audio_playback.dart';
@@ -41,6 +42,8 @@ class FakeCamera implements CameraManager {
   @override
   Future<Uint8List?> capture() async => Uint8List.fromList([9]);
   @override
+  Widget preview() => const SizedBox.shrink();
+  @override
   Future<void> stop() async {}
 }
 
@@ -69,6 +72,10 @@ class FakePermissions implements Permissions {
   Future<PermissionResult> check() async => onCheck;
   @override
   Future<PermissionResult> request() async => onRequest;
+  @override
+  Future<PermissionResult> statusOf(AppPermission p) async => onCheck;
+  @override
+  Future<PermissionResult> requestOf(AppPermission p) async => onRequest;
   @override
   Future<void> openSettings() async => settingsOpened++;
 }
@@ -218,5 +225,30 @@ void main() {
 
     expect(c.state, SessionState.ready);
     expect(playback.spoken.last, contains('phản hồi chậm'));
+  });
+
+  test('leaving the record screen mid-recording discards the audio', () async {
+    final c = await started();
+    addTearDown(c.dispose);
+    await c.toggleListening();
+    await c.cancelListening();
+    await settle();
+
+    expect(c.state, SessionState.ready);
+    expect(network.sent.where((m) => m.startsWith('audio')), isEmpty);
+  });
+
+  test('voice guide off silences status but still speaks answers', () async {
+    final c = build()..voiceGuide = false;
+    addTearDown(c.dispose);
+    await c.start();
+    network.emit(const ConnectedEvent());
+    await settle();
+    expect(playback.spoken, isEmpty);
+
+    await ask(c);
+    network.emit(const ResultEvent(requestId: 1, intent: 'READ_TEXT', text: 'Nhà thuốc'));
+    await settle();
+    expect(playback.spoken, ['Nhà thuốc']);
   });
 }

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:hina_mobile/audio/audio_capture.dart';
@@ -22,9 +21,9 @@ enum SessionState {
 }
 
 const _askPermissionMessage =
-    'Hina cần camera để nhìn đường và micro để nghe bạn. Bấm vào màn hình để cấp quyền.';
+    'Hina cần camera để nhìn đường và micro để nghe bạn. Vào Cài đặt, chọn Quản lý quyền truy cập.';
 const _blockedMessage =
-    'Quyền đang bị chặn. Bấm vào màn hình để mở cài đặt, rồi bật camera và micro.';
+    'Quyền camera hoặc micro đang bị chặn. Vào Cài đặt, chọn Quản lý quyền truy cập.';
 
 /// Khối điều phối trung tâm: quyết định khi nào thu âm, chụp ảnh, gửi, đọc kết quả.
 class SessionController extends ChangeNotifier {
@@ -73,6 +72,10 @@ class SessionController extends ChangeNotifier {
   SessionState get state => _state;
   String get message => _message;
 
+  /// Tắt thì không đọc trạng thái ("Sẵn sàng", mất kết nối, xin quyền).
+  /// Câu trả lời, lỗi của yêu cầu và cảnh báo an toàn luôn được đọc.
+  bool voiceGuide = true;
+
   Future<void> start() async {
     try {
       await _handlePermission(await permissions.check());
@@ -81,8 +84,8 @@ class SessionController extends ChangeNotifier {
     }
   }
 
-  /// Một thao tác bấm duy nhất, ý nghĩa tùy trạng thái: cấp quyền, mở cài đặt,
-  /// bắt đầu nói, hoặc gửi.
+  /// Nút chính màn Ghi âm: bắt đầu nói hoặc gửi. Nhánh quyền là dự phòng
+  /// (UI đưa người dùng tới màn Cấp quyền).
   Future<void> toggleListening() async {
     switch (_state) {
       case SessionState.needsPermission:
@@ -113,10 +116,10 @@ class SessionController extends ChangeNotifier {
         await _boot();
       case PermissionResult.denied:
         _set(SessionState.needsPermission, _askPermissionMessage);
-        _speak(_askPermissionMessage);
+        _announce(_askPermissionMessage);
       case PermissionResult.permanentlyDenied:
         _set(SessionState.permissionBlocked, _blockedMessage);
-        _speak(_blockedMessage);
+        _announce(_blockedMessage);
     }
   }
 
@@ -161,7 +164,7 @@ class SessionController extends ChangeNotifier {
       _fail('Không thu được âm thanh.');
       return;
     }
-    _set(SessionState.listening, 'Đang nghe, bấm lần nữa để gửi');
+    _set(SessionState.listening, 'Đang ghi âm, bấm Dừng ghi âm để gửi');
     _listenCap = Timer(maxListen, () => unawaited(_finishListening()));
   }
 
@@ -187,6 +190,14 @@ class SessionController extends ChangeNotifier {
     _timeout = Timer(requestTimeout, _onTimeout);
   }
 
+  /// Rời màn ghi âm giữa chừng: bỏ đoạn đang thu, không gửi.
+  Future<void> cancelListening() async {
+    if (_state != SessionState.listening) return;
+    _listenCap?.cancel();
+    _set(SessionState.ready, 'Sẵn sàng');
+    await capture.stop();
+  }
+
   void _onEvent(ServerEvent event) {
     switch (event) {
       case ConnectedEvent():
@@ -207,7 +218,7 @@ class SessionController extends ChangeNotifier {
   void _onConnected() {
     if (_state == SessionState.init || _state == SessionState.disconnected) {
       _set(SessionState.ready, 'Sẵn sàng');
-      _speak('Sẵn sàng');
+      _announce('Sẵn sàng');
     }
     if (!_paused) _startFrames();
   }
@@ -219,7 +230,7 @@ class SessionController extends ChangeNotifier {
     _listenCap?.cancel();
     if (_state == SessionState.listening) unawaited(capture.stop());
     _set(SessionState.disconnected, 'Mất kết nối, đang thử lại');
-    _speak('Mất kết nối, đang thử lại');
+    _announce('Mất kết nối, đang thử lại');
   }
 
   void _onResult(ResultEvent r) {
@@ -293,6 +304,10 @@ class SessionController extends ChangeNotifier {
   }
 
   void _speak(String text) => unawaited(playback.speak(text));
+
+  void _announce(String text) {
+    if (voiceGuide) _speak(text);
+  }
 
   void _fail(String message) {
     _set(SessionState.error, message);

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Chỉ cho dev: HTTP thường tới server trên máy (emulator thấy máy host là 10.0.2.2).
+     Production phải dùng HTTPS/WSS và xoá domain-config này. -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>
