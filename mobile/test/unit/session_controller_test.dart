@@ -1,86 +1,11 @@
-import 'dart:async';
-import 'dart:typed_data';
-
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:hina_mobile/audio/audio_capture.dart';
-import 'package:hina_mobile/audio/audio_playback.dart';
-import 'package:hina_mobile/camera/camera_manager.dart';
-import 'package:hina_mobile/network/network_manager.dart';
 import 'package:hina_mobile/network/server_event.dart';
 import 'package:hina_mobile/permissions/device_permissions.dart';
 import 'package:hina_mobile/session/session_controller.dart';
 
-class FakeNetwork implements NetworkManager {
-  final _controller = StreamController<ServerEvent>.broadcast();
-  final sent = <String>[];
-  bool connected = false;
+import '../support/fakes.dart';
 
-  @override
-  Stream<ServerEvent> get events => _controller.stream;
-  @override
-  bool get isConnected => connected;
-  @override
-  Future<void> connect() async {}
-  @override
-  void sendAudio(int requestId, Uint8List pcm) => sent.add('audio:$requestId');
-  @override
-  void sendImage(int frameId, Uint8List jpeg) => sent.add('image:$frameId');
-  @override
-  Future<void> close() async {}
-
-  void emit(ServerEvent event) {
-    if (event is ConnectedEvent) connected = true;
-    if (event is DisconnectedEvent) connected = false;
-    _controller.add(event);
-  }
-}
-
-class FakeCamera implements CameraManager {
-  @override
-  Future<void> start() async {}
-  @override
-  Future<Uint8List?> capture() async => Uint8List.fromList([9]);
-  @override
-  Widget preview() => const SizedBox.shrink();
-  @override
-  Future<void> stop() async {}
-}
-
-class FakeCapture implements AudioCapture {
-  @override
-  Future<void> start() async {}
-  @override
-  Future<Uint8List> stop() async => Uint8List.fromList([1, 2, 3]);
-}
-
-class FakePlayback implements AudioPlayback {
-  final spoken = <String>[];
-  @override
-  Future<void> speak(String text) async => spoken.add(text);
-  @override
-  Future<void> stop() async {}
-}
-
-class FakePermissions implements Permissions {
-  FakePermissions(this.onCheck, this.onRequest);
-  PermissionResult onCheck;
-  PermissionResult onRequest;
-  int settingsOpened = 0;
-
-  @override
-  Future<PermissionResult> check() async => onCheck;
-  @override
-  Future<PermissionResult> request() async => onRequest;
-  @override
-  Future<PermissionResult> statusOf(AppPermission p) async => onCheck;
-  @override
-  Future<PermissionResult> requestOf(AppPermission p) async => onRequest;
-  @override
-  Future<void> openSettings() async => settingsOpened++;
-}
-
-Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 20));
+Future<void> settle([int ms = 20]) => Future<void>.delayed(Duration(milliseconds: ms));
 
 void main() {
   late FakeNetwork network;
@@ -103,6 +28,7 @@ void main() {
       permissions: perms = FakePermissions(check, request),
       requestTimeout: requestTimeout,
       alertCooldown: alertCooldown,
+      dangerRepeatGap: const Duration(milliseconds: 1),
       frameInterval: const Duration(hours: 1), // tắt vòng gửi frame định kỳ trong test
     );
   }
@@ -250,5 +176,51 @@ void main() {
     network.emit(const ResultEvent(requestId: 1, intent: 'READ_TEXT', text: 'Nhà thuốc'));
     await settle();
     expect(playback.spoken, ['Nhà thuốc']);
+  });
+
+  test('END_SESSION ends the session, speaks goodbye and stops reconnecting', () async {
+    final c = await started();
+    addTearDown(c.dispose);
+
+    await ask(c);
+    network.emit(const ResultEvent(requestId: 1, intent: 'END_SESSION', text: 'Đã kết thúc phiên.'));
+    await settle();
+
+    expect(c.state, SessionState.ended);
+    expect(network.endSessionCalled, isTrue);
+    expect(playback.spoken.last, 'Đã kết thúc phiên.');
+
+    network.emit(const DisconnectedEvent());
+    await settle();
+    expect(c.state, SessionState.ended);
+  });
+
+  test('startNewSession connects again after the session ended', () async {
+    final c = await started();
+    addTearDown(c.dispose);
+    expect(network.connects, 1);
+
+    await ask(c);
+    network.emit(const ResultEvent(requestId: 1, intent: 'END_SESSION', text: 'Tạm biệt'));
+    await settle();
+
+    await c.startNewSession();
+    expect(network.connects, 2);
+    expect(c.state, SessionState.init);
+
+    network.emit(const ConnectedEvent());
+    await settle();
+    expect(c.state, SessionState.ready);
+  });
+
+  test('danger alerts repeat three times', () async {
+    final c = await started();
+    addTearDown(c.dispose);
+    const alert = AlertEvent(level: 'danger', label: 'car', direction: 'ahead', distanceM: 0.8);
+
+    network.emit(alert);
+    await settle(120);
+
+    expect(playback.spoken.where((s) => s.startsWith('Nguy hiểm')), hasLength(3));
   });
 }

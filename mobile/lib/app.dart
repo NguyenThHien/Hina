@@ -73,7 +73,7 @@ class _HinaAppState extends State<HinaApp> with WidgetsBindingObserver {
             child: child ?? const SizedBox.shrink(),
           );
         },
-        home: _onboarded ? HomeScreen(controller: _c) : OnboardingScreen(prefs: _prefs),
+        home: _onboarded ? HomeScreen(controller: _c) : OnboardingScreen(prefs: _prefs, controller: _c),
         routes: {
           Routes.home: (_) => HomeScreen(controller: _c),
           Routes.permissions: (_) => PermissionsScreen(permissions: _c.permissions, controller: _c),

@@ -2,7 +2,12 @@
 
 Client mỏng: thu audio + ảnh, gửi lên server qua WSS ([docs/protocol.md](../docs/protocol.md)), đọc kết quả và cảnh báo bằng TTS của điện thoại. Không chạy AI trên máy.
 
-> **Trạng thái:** khung này được viết tay khi máy chưa có Flutter, nên **chưa từng được compile, analyze hay test**. Việc đầu tiên khi có Flutter là bước "Khởi tạo" dưới đây rồi `flutter analyze` + `flutter test` và sửa lỗi nếu có.
+> **Trạng thái:** đã `flutter analyze` + `flutter test` (unit/widget) trên Flutter 3.x. Phần cứng thật (camera/mic trên máy) vẫn cần chạy thử trên thiết bị.
+
+## Xử lý kết quả và âm thanh
+- Server trả `intent` dạng tên (`READ_TEXT`, `END_SESSION`, …) kèm `intent_id` 1–5; xem [docs/protocol.md](../docs/protocol.md).
+- `END_SESSION`: app đọc lời tạm biệt, đóng kết nối, về Trang chủ và **không tự kết nối lại**; nút "Bắt đầu trò chuyện" mở phiên mới.
+- `audio/speech_queue.dart` xếp hàng đọc: cảnh báo `danger` ngắt lời và lặp tối đa 3 lần; kết quả mới thay kết quả chưa đọc; thông báo trạng thái giữ tối đa 8 câu.
 
 ## Khởi tạo (một lần, cần Flutter SDK)
 ```

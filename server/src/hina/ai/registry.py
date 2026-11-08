@@ -7,6 +7,7 @@ from hina.ai.asr.stub import StubASR
 from hina.ai.base import AiServices
 from hina.ai.depth.stub import StubDepth
 from hina.ai.detection.stub import StubDetector
+from hina.ai.nlu.http import HttpNLU
 from hina.ai.nlu.stub import StubNLU
 from hina.ai.ocr.stub import StubOCR
 from hina.ai.tts.fpt import FptTTS
@@ -30,7 +31,10 @@ def _secret(value: SecretStr | None, env_name: str) -> str:
 # Thêm impl: IMPLS["asr"]["phowhisper"] = lambda s, http: PhoWhisperASR(...), rồi HINA_ASR=phowhisper.
 IMPLS: dict[str, dict[str, Factory]] = {
     "asr": {"stub": _plain(StubASR)},
-    "nlu": {"stub": _plain(StubNLU)},
+    "nlu": {
+        "stub": _plain(StubNLU),
+        "http": lambda s, http: HttpNLU(http, s.nlu_url, s.nlu_timeout_s),
+    },
     "ocr": {"stub": _plain(StubOCR)},
     "detector": {"stub": _plain(StubDetector)},
     "depth": {"stub": _plain(StubDepth)},

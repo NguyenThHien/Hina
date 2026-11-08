@@ -8,6 +8,7 @@ dependencies = [
     "pydantic-settings>=2.4",
     "pyjwt>=2.9",
     "httpx>=0.27",
+    "pillow>=10",
 ]
 
 # Model thật chỉ thêm vào đây sau khi benchmark chốt (giữ Paddle/PyTorch tách nhau tránh xung đột CUDA).

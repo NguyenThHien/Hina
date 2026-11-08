@@ -5,6 +5,7 @@ import logging
 from fastapi import APIRouter, WebSocket
 from starlette.websockets import WebSocketDisconnect
 
+from hina.ai.base import Intent
 from hina.ai.scheduler import Busy
 from hina.container import Container
 from hina.gateway.auth import AuthError, bearer, verify
@@ -14,6 +15,7 @@ from hina.safety.monitor import SafetyMonitor
 log = logging.getLogger(__name__)
 router = APIRouter()
 WS_POLICY_VIOLATION = 1008
+WS_NORMAL_CLOSURE = 1000
 
 
 class _Outbox:
@@ -28,6 +30,13 @@ class _Outbox:
 
     async def bytes(self, data: bytes) -> None:
         await self._send(self._ws.send_bytes, data)
+
+    async def close(self, code: int) -> None:
+        async with self._lock:
+            try:
+                await self._ws.close(code=code)
+            except (WebSocketDisconnect, RuntimeError):
+                pass
 
     async def _send(self, send, payload) -> None:
         async with self._lock:
@@ -68,7 +77,7 @@ async def ws_endpoint(ws: WebSocket) -> None:
                     latest_image = payload
                     safety.submit(payload)
                 elif kind is Kind.AUDIO:
-                    task = asyncio.create_task(_answer(c, out, rid, payload, latest_image))
+                    task = asyncio.create_task(_answer(c, out, sid, rid, payload, latest_image))
                     background.add(task)
                     task.add_done_callback(background.discard)
                 else:
@@ -93,7 +102,7 @@ async def _control(out: _Outbox, text: str) -> None:
 
 
 async def _answer(
-    c: Container, out: _Outbox, rid: int, audio: bytes, image: bytes | None
+    c: Container, out: _Outbox, sid: str, rid: int, audio: bytes, image: bytes | None
 ) -> None:
     try:
         reply = await c.orchestrator.handle(audio, image)
@@ -104,8 +113,14 @@ async def _answer(
         log.exception("request %s failed", rid)
         await out.json({"type": "error", "request_id": rid, "message": "internal error"})
         return
-    await out.json(
-        {"type": "result", "request_id": rid, "intent": reply.intent, "text": reply.text}
-    )
+    # IntEnum: str() trả "1" ở Python 3.11+, nên luôn gửi tên cho mobile.
+    intent = reply.intent.name if isinstance(reply.intent, Intent) else reply.intent
+    body = {"type": "result", "request_id": rid, "intent": intent, "text": reply.text}
+    if isinstance(reply.intent, Intent):
+        body["intent_id"] = int(reply.intent)
+    await out.json(body)
     if reply.audio:
         await out.bytes(encode_frame(Kind.TTS, rid, reply.audio))
+    if reply.end_session:
+        await out.close(WS_NORMAL_CLOSURE)
+        c.store.delete(sid)

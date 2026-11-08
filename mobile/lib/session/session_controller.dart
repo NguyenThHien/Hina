@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:hina_mobile/audio/audio_capture.dart';
 import 'package:hina_mobile/audio/audio_playback.dart';
+import 'package:hina_mobile/audio/speech_queue.dart';
 import 'package:hina_mobile/camera/camera_manager.dart';
 import 'package:hina_mobile/network/network_manager.dart';
 import 'package:hina_mobile/network/server_event.dart';
@@ -18,6 +19,7 @@ enum SessionState {
   waiting,
   disconnected,
   error,
+  ended,
 }
 
 const _askPermissionMessage =
@@ -38,6 +40,7 @@ class SessionController extends ChangeNotifier {
     this.requestTimeout = const Duration(seconds: 20),
     this.frameInterval = const Duration(milliseconds: 700),
     this.alertCooldown = const Duration(seconds: 3),
+    this.dangerRepeatGap = const Duration(milliseconds: 1500),
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now;
 
@@ -51,7 +54,10 @@ class SessionController extends ChangeNotifier {
   final Duration requestTimeout;
   final Duration frameInterval;
   final Duration alertCooldown;
+  final Duration dangerRepeatGap;
   final DateTime Function() _now;
+
+  late final SpeechQueue _speech = SpeechQueue(playback, repeatGap: dangerRepeatGap);
 
   SessionState _state = SessionState.init;
   String _message = 'Đang khởi động';
@@ -77,6 +83,23 @@ class SessionController extends ChangeNotifier {
   bool voiceGuide = true;
 
   Future<void> start() async {
+    try {
+      await _handlePermission(await permissions.check());
+    } on Exception {
+      _fail('Không khởi động được ứng dụng.');
+    }
+  }
+
+  /// Bắt đầu phiên mới sau khi phiên trước đã kết thúc.
+  Future<void> startNewSession() async {
+    if (_state != SessionState.ended) return;
+    _stopFrames();
+    _clearPending();
+    _listenCap?.cancel();
+    _lastAlertKey = null;
+    _lastAlertAt = null;
+    _set(SessionState.init, 'Đang khởi động');
+    await _speech.clear();
     try {
       await _handlePermission(await permissions.check());
     } on Exception {
@@ -124,15 +147,16 @@ class SessionController extends ChangeNotifier {
   }
 
   Future<void> _boot() async {
-    if (_booted) return;
-    _booted = true;
-    _eventSub = network.events.listen(_onEvent);
-    _wakeSub = voice?.onWake.listen((_) {
-      if (_state == SessionState.ready) unawaited(toggleListening());
-    });
-    await voice?.start();
+    if (!_booted) {
+      _booted = true;
+      _eventSub = network.events.listen(_onEvent);
+      _wakeSub = voice?.onWake.listen((_) {
+        if (_state == SessionState.ready) unawaited(toggleListening());
+      });
+      await voice?.start();
+    }
     await camera.start();
-    await network.connect();
+    if (!network.isConnected) await network.connect();
   }
 
   Future<void> pause() async {
@@ -143,6 +167,7 @@ class SessionController extends ChangeNotifier {
   }
 
   Future<void> resume() async {
+    if (_state == SessionState.ended) return;
     if (_state == SessionState.permissionBlocked) {
       // Người dùng có thể vừa bật quyền trong Cài đặt; chỉ hành động nếu đã được cấp.
       if (await permissions.check() == PermissionResult.granted) {
@@ -157,7 +182,7 @@ class SessionController extends ChangeNotifier {
   }
 
   Future<void> _startListening() async {
-    await playback.stop();
+    await _speech.clear();
     try {
       await capture.start();
     } on Exception {
@@ -216,6 +241,7 @@ class SessionController extends ChangeNotifier {
   }
 
   void _onConnected() {
+    if (_state == SessionState.ended) return;
     if (_state == SessionState.init || _state == SessionState.disconnected) {
       _set(SessionState.ready, 'Sẵn sàng');
       _announce('Sẵn sàng');
@@ -224,6 +250,7 @@ class SessionController extends ChangeNotifier {
   }
 
   void _onDisconnected() {
+    if (_state == SessionState.ended) return;
     if (_state == SessionState.disconnected) return; // mỗi lần retry hỏng lại phát sự kiện
     _stopFrames();
     _clearPending();
@@ -236,32 +263,52 @@ class SessionController extends ChangeNotifier {
   void _onResult(ResultEvent r) {
     if (r.requestId != _pendingId) return; // phản hồi cũ/không còn hợp lệ
     _clearPending();
+    if (r.intent == 'END_SESSION') {
+      _onEnded(r.text);
+      return;
+    }
     _set(SessionState.ready, r.text);
-    _speak(r.text);
+    _speech.result(r.text);
+  }
+
+  /// Server đã kết thúc phiên: dừng mọi hoạt động, đọc lời tạm biệt, không tự kết nối lại.
+  void _onEnded(String text) {
+    _stopFrames();
+    _listenCap?.cancel();
+    if (_state == SessionState.listening) unawaited(capture.stop());
+    _set(SessionState.ended, text);
+    unawaited(_speech.sayNow(text));
+    unawaited(network.endSession());
+    unawaited(camera.stop());
   }
 
   void _onError(ErrorEvent e) {
     if (e.requestId == null || e.requestId != _pendingId) return;
     _clearPending();
     _set(SessionState.ready, 'Có lỗi, bạn thử lại nhé');
-    _speak('Có lỗi, bạn thử lại nhé');
+    _speech.announce('Có lỗi, bạn thử lại nhé');
   }
 
   void _onAlert(AlertEvent a) {
+    if (_state == SessionState.ended) return;
     final key = '${a.level}/${a.label}/${a.direction}';
     final now = _now();
     final last = _lastAlertAt;
     if (key == _lastAlertKey && last != null && now.difference(last) < alertCooldown) return;
     _lastAlertKey = key;
     _lastAlertAt = now;
-    unawaited(_speakUrgent(a.speech));
+    if (a.level == 'danger') {
+      _speech.danger(a.speech);
+    } else {
+      _speech.announce(a.speech);
+    }
   }
 
   void _onTimeout() {
     if (_pendingId == null) return;
     _clearPending();
     _set(SessionState.ready, 'Máy chủ phản hồi chậm, bạn thử lại nhé');
-    _speak('Máy chủ phản hồi chậm, bạn thử lại nhé');
+    _speech.announce('Máy chủ phản hồi chậm, bạn thử lại nhé');
   }
 
   void _clearPending() {
@@ -298,20 +345,13 @@ class SessionController extends ChangeNotifier {
     }
   }
 
-  Future<void> _speakUrgent(String text) async {
-    await playback.stop(); // cảnh báo ngắt lời đang đọc
-    await playback.speak(text);
-  }
-
-  void _speak(String text) => unawaited(playback.speak(text));
-
   void _announce(String text) {
-    if (voiceGuide) _speak(text);
+    if (voiceGuide) _speech.announce(text);
   }
 
   void _fail(String message) {
     _set(SessionState.error, message);
-    _speak(message);
+    _speech.announce(message);
   }
 
   void _set(SessionState state, String message) {
@@ -328,6 +368,7 @@ class SessionController extends ChangeNotifier {
     unawaited(_eventSub?.cancel());
     unawaited(_wakeSub?.cancel());
     unawaited(voice?.stop());
+    unawaited(_speech.clear());
     unawaited(network.close());
     unawaited(camera.stop());
     super.dispose();

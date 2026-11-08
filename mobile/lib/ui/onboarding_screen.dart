@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:hina_mobile/permissions/device_permissions.dart';
 import 'package:hina_mobile/prefs/app_prefs.dart';
+import 'package:hina_mobile/session/session_controller.dart';
 import 'package:hina_mobile/ui/theme.dart';
 import 'package:hina_mobile/ui/widgets.dart';
 
@@ -11,9 +13,10 @@ const _pages = [
 
 /// Ba trang giới thiệu, chuyển bằng nút (không vuốt) để TalkBack dùng dễ.
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key, required this.prefs});
+  const OnboardingScreen({super.key, required this.prefs, required this.controller});
 
   final AppPrefs prefs;
+  final SessionController controller;
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -22,9 +25,18 @@ class OnboardingScreen extends StatefulWidget {
 class _OnboardingScreenState extends State<OnboardingScreen> {
   int _index = 0;
 
-  void _finish() {
+  // Android tự nhớ quyền đã cấp: đủ cả hai thì bỏ qua màn Cấp quyền.
+  Future<void> _finish() async {
     widget.prefs.onboarded = true;
-    Navigator.of(context).pushReplacementNamed(Routes.permissions);
+    final c = widget.controller;
+    final granted = await c.permissions.check() == PermissionResult.granted;
+    if (!mounted) return;
+    if (granted) {
+      await c.start();
+      if (mounted) goTo(context, Routes.home);
+    } else {
+      await Navigator.of(context).pushReplacementNamed(Routes.permissions);
+    }
   }
 
   @override

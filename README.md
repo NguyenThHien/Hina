@@ -4,7 +4,7 @@ Mobile (Flutter) ↔ Server (FastAPI modular monolith, AI chạy phía server).
 
 ```
 server/      FastAPI: gateway, session, orchestrator, safety, aggregator, ai/ (Protocol + stub)
-mobile/      Flutter (khung viết tay, chưa compile; xem mobile/README.md)
+mobile/      Flutter (Android), đã analyze + test; xem mobile/README.md
 benchmarks/  so sánh model ASR/NLU/OCR/Detection
 docs/        protocol.md, adr/
 ```
@@ -21,6 +21,14 @@ uv run ruff check .
 Hoặc `cp .env.example .env`, điền secret, rồi `docker compose up --build`.
 
 Mặc định mọi khối AI là stub (`HINA_ASR=stub`, …). Thêm model thật: viết impl theo Protocol trong `server/src/hina/ai/base.py`, đăng ký ở `ai/registry.py`, đổi biến môi trường.
+
+### Bật NLU thật
+```
+HINA_NLU=http
+HINA_NLU_URL=https://nlu.frshdrp.vn
+HINA_NLU_TIMEOUT_S=5
+```
+Server gọi `POST {HINA_NLU_URL}/v1/predict` với `{"text": "<câu ASR>"}` và đọc `label_id` (1–5). Lỗi mạng/timeout/nhãn lạ → `UNKNOWN` (hỏi lại), không làm hỏng phiên.
 
 ### Bật TTS thật (FPT.AI)
 Điền vào `server/.env` (xem `.env.example`):

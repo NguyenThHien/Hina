@@ -19,6 +19,7 @@ class _RecordScreenState extends State<RecordScreen> {
   final _clock = Stopwatch();
   Timer? _tick;
   bool _asked = false; // đã hỏi ít nhất một lần: nút đổi thành "Ghi âm lại"
+  bool _leaving = false;
 
   SessionController get _c => widget.controller;
 
@@ -48,7 +49,17 @@ class _RecordScreenState extends State<RecordScreen> {
       _tick?.cancel();
       _asked = true;
     }
+    if (_c.state == SessionState.ended) _leave();
     setState(() {});
+  }
+
+  /// Phiên đã kết thúc: đóng màn Ghi âm sau frame để không đụng Navigator khi đang build.
+  void _leave() {
+    if (_leaving) return;
+    _leaving = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) Navigator.of(context).popUntil((route) => route.isFirst);
+    });
   }
 
   (String, VoidCallback?) _mainAction() => switch (_c.state) {
@@ -61,6 +72,7 @@ class _RecordScreenState extends State<RecordScreen> {
         SessionState.init => ('Đang kết nối', null),
         SessionState.disconnected => ('Đang kết nối lại', null),
         SessionState.error => ('Có lỗi, thử lại sau', null),
+        SessionState.ended => ('Đã kết thúc phiên', null),
       };
 
   @override

@@ -19,6 +19,9 @@ abstract class NetworkManager {
   Future<void> connect();
   void sendAudio(int requestId, Uint8List pcm);
   void sendImage(int frameId, Uint8List jpeg);
+
+  /// Đóng phiên hiện tại (server đã đóng WS với mã 1000) và **không** tự kết nối lại.
+  Future<void> endSession();
   Future<void> close();
 }
 
@@ -33,6 +36,7 @@ class HttpWsNetworkManager implements NetworkManager {
   String? _sessionId;
   String? _token;
   bool _closed = false;
+  bool _ended = false;
   int _attempt = 0;
   Timer? _retry;
 
@@ -45,6 +49,7 @@ class HttpWsNetworkManager implements NetworkManager {
   @override
   Future<void> connect() {
     _closed = false;
+    _ended = false;
     return _open();
   }
 
@@ -94,7 +99,7 @@ class HttpWsNetworkManager implements NetworkManager {
 
   void _onDown() {
     _channel = null;
-    if (_closed) return;
+    if (_closed || _ended) return;
     _events.add(const DisconnectedEvent());
     _retry?.cancel();
     final delay = Duration(seconds: min(15, 1 << min(_attempt, 4))); // 1,2,4,8,15s
@@ -107,6 +112,18 @@ class HttpWsNetworkManager implements NetworkManager {
 
   @override
   void sendImage(int frameId, Uint8List jpeg) => _channel?.sink.add(encodeFrame(Kind.image, frameId, jpeg));
+
+  @override
+  Future<void> endSession() async {
+    _ended = true;
+    _retry?.cancel();
+    _retry = null;
+    final channel = _channel;
+    _channel = null;
+    await channel?.sink.close();
+    _sessionId = null;
+    _token = null;
+  }
 
   @override
   Future<void> close() async {

@@ -9,3 +9,4 @@ benchmarks/**/data/
 *.onnx
 *.pt
 *.pdparams
+.sisyphus/

@@ -6,8 +6,8 @@ import 'package:hina_mobile/ui/widgets.dart';
 const _features = [
   (Icons.article_outlined, 'Đọc văn bản'),
   (Icons.image_outlined, 'Mô tả cảnh vật'),
-  (Icons.adjust, 'Tìm đồ vật'),
-  (Icons.swap_horiz, 'Ước lượng khoảng cách'),
+  (Icons.help_outline, 'Hỏi về cảnh vật'),
+  (Icons.logout, 'Kết thúc trò chuyện'),
 ];
 
 class HomeScreen extends StatelessWidget {
@@ -57,7 +57,10 @@ class HomeScreen extends StatelessWidget {
               ]),
             ),
             const SizedBox(height: 17),
-            HinaButton('Bắt đầu trò chuyện', onPressed: () => goTo(context, Routes.record)),
+            HinaButton('Bắt đầu trò chuyện', onPressed: () async {
+              if (controller.state == SessionState.ended) await controller.startNewSession();
+              if (context.mounted) goTo(context, Routes.record);
+            }),
           ]),
         ),
         const SizedBox(height: 23),

@@ -1,10 +1,11 @@
 from hina.ai.base import Intent, NluResult
 
+# Thứ tự quan trọng: cụm kết thúc phiên phải khớp trước các từ để hỏi chung chung.
 _RULES: tuple[tuple[Intent, tuple[str, ...]], ...] = (
+    (Intent.END_SESSION, ("kết thúc", "tạm biệt", "dừng phiên", "thoát")),
     (Intent.READ_TEXT, ("đọc",)),
-    (Intent.DETECT_OBJECT, ("vật cản", "chướng ngại", "ở đâu", "phía nào")),
-    (Intent.DESCRIBE_SCENE, ("mô tả", "trước mặt", "có gì")),
-    (Intent.VISUAL_QUESTION, ("?", "gì", "màu", "bao nhiêu")),
+    (Intent.DESCRIBE_SCENE, ("mô tả", "tả cảnh", "trước mặt", "xung quanh")),
+    (Intent.ANSWER_VISUAL_QUESTION, ("?", "gì", "màu", "bao nhiêu", "đâu")),
 )
 
 

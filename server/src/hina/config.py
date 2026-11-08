@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     vlm: str = "stub"  # model VLM tự fine-tune sẽ đăng ký ở đây
     tts: str = "stub"  # "fpt"
 
+    # NLU qua API ngoài (HINA_NLU=http).
+    nlu_url: str = "https://nlu.frshdrp.vn"
+    nlu_timeout_s: float = 5
+
     # TTS qua FPT.AI (HINA_TTS=fpt).
     fpt_api_key: SecretStr | None = None
     fpt_voice: str = "banmai"

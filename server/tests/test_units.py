@@ -1,14 +1,25 @@
 import asyncio
+import io
 
 import pytest
+from PIL import Image
 
-from hina.ai.base import Detection
+from hina.aggregator.compose import NO_IMAGE, Result, compose
+from hina.ai.base import Detection, Intent
+from hina.ai.nlu.stub import StubNLU
 from hina.ai.scheduler import SAFETY, USER, Busy, GpuScheduler
 from hina.gateway.auth import AuthError, issue, verify
 from hina.gateway.protocol import Kind, ProtocolError, decode_frame, encode_frame
+from hina.preprocess.image import CropError, crop
 from hina.safety.risk import assess
 
 SECRET = "x" * 32
+
+
+def png(w=100, h=200):
+    buf = io.BytesIO()
+    Image.new("RGB", (w, h), (10, 20, 30)).save(buf, format="PNG")
+    return buf.getvalue()
 
 
 def det(label="person", box=(0.4, 0.2, 0.6, 0.8)):
@@ -68,3 +79,46 @@ def test_scheduler_safety_beats_user_and_queue_is_bounded():
         return order
 
     assert asyncio.run(main()) == ["safety", "user"]
+
+
+def test_intent_is_numeric_1_to_5():
+    assert [i.value for i in Intent] == [1, 2, 3, 4, 5]
+    assert Intent(4) is Intent.END_SESSION
+    assert not hasattr(Intent, "DETECT_OBJECT") and not hasattr(Intent, "VISUAL_QUESTION")
+
+
+def test_compose_messages_per_intent():
+    assert compose(Result(NO_IMAGE)) == "Chưa nhận được hình ảnh, bạn thử lại nhé."
+    assert compose(Result(Intent.UNKNOWN)) == "Mình chưa hiểu yêu cầu, bạn nói lại giúp mình."
+    assert "Tạm biệt" in compose(Result(Intent.END_SESSION))
+    assert compose(Result(Intent.READ_TEXT, "abc")) == "abc"
+    assert compose(Result(Intent.READ_TEXT, "  ")) == "Không đọc được chữ trong ảnh."
+
+
+def test_stub_nlu_maps_vietnamese_phrases():
+    async def parse(text):
+        return (await StubNLU().parse(text)).intent
+
+    assert asyncio.run(parse("đọc nội dung hóa đơn")) is Intent.READ_TEXT
+    assert asyncio.run(parse("tả cảnh xung quanh")) is Intent.DESCRIBE_SCENE
+    assert asyncio.run(parse("cái này màu gì")) is Intent.ANSWER_VISUAL_QUESTION
+    assert asyncio.run(parse("kết thúc phiên đi")) is Intent.END_SESSION
+    assert asyncio.run(parse("asdfgh qwerty")) is Intent.UNKNOWN
+
+
+def test_crop_returns_jpeg_with_box_pixels():
+    out = crop(png(100, 200), (0.1, 0.2, 0.5, 0.6))
+    assert out[:2] == b"\xff\xd8"
+    assert Image.open(io.BytesIO(out)).size == (40, 80)
+
+
+def test_crop_clamps_box_to_image_bounds():
+    out = crop(png(100, 100), (-0.1, -0.1, 1.2, 1.2))
+    assert Image.open(io.BytesIO(out)).size == (100, 100)
+
+
+def test_crop_rejects_degenerate_box_and_bad_image():
+    with pytest.raises(CropError):
+        crop(png(100, 100), (0.5, 0.5, 0.5, 0.5))
+    with pytest.raises(CropError):
+        crop(b"not-an-image", (0.0, 0.0, 1.0, 1.0))

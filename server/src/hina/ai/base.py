@@ -1,18 +1,20 @@
 """Interface mỏng cho 7 khối AI. Orchestrator/Safety chỉ biết các Protocol này."""
 
 from dataclasses import dataclass, field
-from enum import StrEnum
+from enum import IntEnum
 from typing import Protocol
 
 from hina.geometry import Box
 
 
-class Intent(StrEnum):
-    READ_TEXT = "READ_TEXT"
-    DESCRIBE_SCENE = "DESCRIBE_SCENE"
-    DETECT_OBJECT = "DETECT_OBJECT"
-    VISUAL_QUESTION = "VISUAL_QUESTION"
-    UNKNOWN = "UNKNOWN"
+class Intent(IntEnum):
+    """Nhãn số của NLU API; gửi mobile dạng tên (xem gateway/ws.py)."""
+
+    READ_TEXT = 1
+    DESCRIBE_SCENE = 2
+    ANSWER_VISUAL_QUESTION = 3
+    END_SESSION = 4
+    UNKNOWN = 5
 
 
 @dataclass(frozen=True)
