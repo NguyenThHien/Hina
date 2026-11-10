@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hina_mobile/audio/audio_playback.dart';
@@ -8,6 +9,15 @@ class _FakePlayback implements AudioPlayback {
   final spoken = <String>[];
   bool holdNext = false;
   Completer<void>? _gate;
+  final played = <int>[];
+  Object? playError;
+
+  @override
+  Future<void> play(Uint8List mp3) async {
+    played.add(mp3.length);
+    if (playError case final e?) throw e;
+  }
+
 
   @override
   Future<void> speak(String text) async {
@@ -114,5 +124,20 @@ void main() {
     await _settle();
 
     expect(playback.spoken, ['A']);
+  });
+
+  test('kết quả có MP3 thì phát MP3, không đọc text', () async {
+    final playback = _FakePlayback();
+    SpeechQueue(playback).result('xin chào', audio: Uint8List.fromList([1, 2, 3]));
+    await _settle();
+    expect(playback.played, [3]);
+    expect(playback.spoken, isEmpty);
+  });
+
+  test('phát MP3 lỗi thì đọc text bằng TTS máy', () async {
+    final playback = _FakePlayback()..playError = Exception('codec');
+    SpeechQueue(playback).result('xin chào', audio: Uint8List.fromList([1]));
+    await _settle();
+    expect(playback.spoken, ['xin chào']);
   });
 }

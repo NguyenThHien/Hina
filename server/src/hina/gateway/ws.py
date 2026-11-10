@@ -1,6 +1,8 @@
 import asyncio
 import json
 import logging
+from collections.abc import Callable
+from functools import partial
 
 from fastapi import APIRouter, WebSocket
 from starlette.websockets import WebSocketDisconnect
@@ -21,11 +23,13 @@ WS_NORMAL_CLOSURE = 1000
 class _Outbox:
     """Nhiều task gửi chung 1 socket: khóa để không xen kẽ, bỏ qua khi client đã đi."""
 
-    def __init__(self, ws: WebSocket) -> None:
+    def __init__(self, ws: WebSocket, on_json: Callable[[dict], None]) -> None:
         self._ws = ws
         self._lock = asyncio.Lock()
+        self._on_json = on_json
 
     async def json(self, obj: dict) -> None:
+        self._on_json(obj)
         await self._send(self._ws.send_text, json.dumps(obj, ensure_ascii=False))
 
     async def bytes(self, data: bytes) -> None:
@@ -57,8 +61,9 @@ async def ws_endpoint(ws: WebSocket) -> None:
         await ws.close(code=WS_POLICY_VIOLATION)
         return
     await ws.accept()
-
-    out = _Outbox(ws)
+    dbg = c.debug
+    dbg.add(sid, None, "connect")
+    out = _Outbox(ws, lambda obj: dbg.add(sid, obj.get("request_id"), f"send:{obj.get('type')}", **obj))
     safety = SafetyMonitor(c.ai.detector, c.ai.depth, c.scheduler, out.json)
     background = {asyncio.create_task(safety.run())}
     latest_image: bytes | None = None
@@ -76,7 +81,10 @@ async def ws_endpoint(ws: WebSocket) -> None:
                 if kind is Kind.IMAGE:
                     latest_image = payload
                     safety.submit(payload)
+                    dbg.frame(sid, payload)
                 elif kind is Kind.AUDIO:
+                    image_bytes = len(latest_image) if latest_image else 0
+                    dbg.add(sid, rid, "recv:audio", bytes=len(payload), image_bytes=image_bytes)
                     task = asyncio.create_task(_answer(c, out, sid, rid, payload, latest_image))
                     background.add(task)
                     task.add_done_callback(background.discard)
@@ -85,6 +93,8 @@ async def ws_endpoint(ws: WebSocket) -> None:
             elif msg.get("text") is not None:
                 await _control(out, msg["text"])
     finally:
+        dbg.add(sid, None, "disconnect")
+        dbg.forget(sid)
         for t in background:
             t.cancel()
         await asyncio.gather(*background, return_exceptions=True)
@@ -105,12 +115,13 @@ async def _answer(
     c: Container, out: _Outbox, sid: str, rid: int, audio: bytes, image: bytes | None
 ) -> None:
     try:
-        reply = await c.orchestrator.handle(audio, image)
+        reply = await c.orchestrator.handle(audio, image, partial(c.debug.add, sid, rid))
     except Busy:
         await out.json({"type": "error", "request_id": rid, "message": "server busy"})
         return
-    except Exception:
+    except Exception as e:
         log.exception("request %s failed", rid)
+        c.debug.add(sid, rid, "fail", error=f"{type(e).__name__}: {e}")
         await out.json({"type": "error", "request_id": rid, "message": "internal error"})
         return
     # IntEnum: str() trả "1" ở Python 3.11+, nên luôn gửi tên cho mobile.
@@ -118,9 +129,11 @@ async def _answer(
     body = {"type": "result", "request_id": rid, "intent": intent, "text": reply.text}
     if isinstance(reply.intent, Intent):
         body["intent_id"] = int(reply.intent)
-    await out.json(body)
+    # Audio gửi TRƯỚC result: mobile nhận result là biết ngay có MP3 hay phải tự đọc text.
     if reply.audio:
         await out.bytes(encode_frame(Kind.TTS, rid, reply.audio))
+        c.debug.add(sid, rid, "send:tts", bytes=len(reply.audio))
+    await out.json(body)
     if reply.end_session:
         await out.close(WS_NORMAL_CLOSURE)
         c.store.delete(sid)

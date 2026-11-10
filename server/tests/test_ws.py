@@ -71,10 +71,10 @@ def test_result_carries_intent_name_and_id(client, session):
 def test_end_session_closes_with_1000_and_deletes_session(client, session):
     with client.websocket_connect("/ws", headers=session["headers"]) as ws:
         ws.send_bytes(encode_frame(Kind.AUDIO, 9, "kết thúc phiên".encode()))
+        assert ws.receive()["bytes"]  # TTS tới trước result
         result = ws.receive_json()
         assert result["intent"] == "END_SESSION" and result["intent_id"] == 4
         assert result["text"] == "Đã kết thúc phiên. Tạm biệt bạn."
-        assert ws.receive()["bytes"]
         try:
             closed = ws.receive()
         except WebSocketDisconnect as e:
@@ -87,7 +87,7 @@ def test_end_session_closes_with_1000_and_deletes_session(client, session):
 def test_unknown_intent_asks_to_repeat_and_keeps_connection(client, session):
     with client.websocket_connect("/ws", headers=session["headers"]) as ws:
         ws.send_bytes(encode_frame(Kind.AUDIO, 3, b"asdfgh qwerty"))
+        ws.receive()  # khung TTS
         assert ws.receive_json()["intent"] == "UNKNOWN"
-        ws.receive()
         ws.send_text('{"type":"ping"}')
         assert ws.receive_json() == {"type": "pong"}

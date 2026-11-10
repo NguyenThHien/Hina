@@ -83,9 +83,9 @@ def test_describe_scene_uses_vlm(client, session):
 def test_end_session_returns_goodbye_then_closes_1000(client, session):
     with client.websocket_connect("/ws", headers=session["headers"]) as ws:
         ws.send_bytes(encode_frame(Kind.AUDIO, 9, "kết thúc phiên".encode()))
+        assert ws.receive()["bytes"]  # TTS tới trước result
         result = ws.receive_json()
         assert (result["intent"], result["intent_id"]) == ("END_SESSION", int(Intent.END_SESSION))
-        assert ws.receive()["bytes"]
         try:
             closed = ws.receive()
         except WebSocketDisconnect as exc:
@@ -99,9 +99,9 @@ def test_end_session_returns_goodbye_then_closes_1000(client, session):
 def test_unknown_intent_keeps_connection(client, session):
     with client.websocket_connect("/ws", headers=session["headers"]) as ws:
         ws.send_bytes(encode_frame(Kind.AUDIO, 3, b"asdfgh qwerty"))
+        ws.receive()  # khung TTS
         result = ws.receive_json()
         assert (result["intent"], result["intent_id"]) == ("UNKNOWN", int(Intent.UNKNOWN))
-        ws.receive()
         ws.send_text('{"type":"ping"}')
         assert ws.receive_json() == {"type": "pong"}
 

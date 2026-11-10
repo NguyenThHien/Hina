@@ -12,6 +12,7 @@ from hina.ai.nlu.stub import StubNLU
 from hina.ai.ocr.stub import StubOCR
 from hina.ai.tts.fpt import FptTTS
 from hina.ai.tts.stub import StubTTS
+from hina.ai.vlm.gemini import GeminiVLM
 from hina.ai.vlm.stub import StubVLM
 from hina.config import Settings
 
@@ -28,6 +29,12 @@ def _secret(value: SecretStr | None, env_name: str) -> str:
     return value.get_secret_value()
 
 
+def _required(value: str | None, env_name: str) -> str:
+    if not value:
+        raise ValueError(f"{env_name} is required for this AI impl (set it in .env)")
+    return value
+
+
 # Thêm impl: IMPLS["asr"]["phowhisper"] = lambda s, http: PhoWhisperASR(...), rồi HINA_ASR=phowhisper.
 IMPLS: dict[str, dict[str, Factory]] = {
     "asr": {"stub": _plain(StubASR)},
@@ -38,7 +45,15 @@ IMPLS: dict[str, dict[str, Factory]] = {
     "ocr": {"stub": _plain(StubOCR)},
     "detector": {"stub": _plain(StubDetector)},
     "depth": {"stub": _plain(StubDepth)},
-    "vlm": {"stub": _plain(StubVLM)},
+    "vlm": {
+        "stub": _plain(StubVLM),
+        "gemini": lambda s, http: GeminiVLM(
+            http,
+            _secret(s.gemini_api_key, "HINA_GEMINI_API_KEY"),
+            s.gemini_model,
+            _required(s.gemini_base_url, "HINA_GEMINI_BASE_URL"),
+        ),
+    },
     "tts": {
         "stub": _plain(StubTTS),
         "fpt": lambda s, http: FptTTS(

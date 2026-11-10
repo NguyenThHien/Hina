@@ -28,3 +28,12 @@ class Settings(BaseSettings):
     fpt_voice: str = "banmai"
     fpt_speed: int = 0
     tts_timeout_s: float = 20
+
+    # VLM qua Google Gemini (HINA_VLM=gemini). gemini-3.5-flash ~5 s; cần nhanh hơn: gemini-flash-lite-latest.
+    gemini_api_key: SecretStr | None = None
+    gemini_base_url: str | None = None  # đặt trong .env (HINA_GEMINI_BASE_URL)
+    gemini_model: str = "gemini-3.5-flash"
+    vlm_timeout_s: float = 15
+
+    # Trang /debug xem luồng request (chứa ảnh/câu nói của người dùng): CHỈ bật khi dev.
+    debug: bool = False

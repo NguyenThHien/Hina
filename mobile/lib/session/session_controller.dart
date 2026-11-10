@@ -268,7 +268,7 @@ class SessionController extends ChangeNotifier {
       return;
     }
     _set(SessionState.ready, r.text);
-    _speech.result(r.text);
+    _speech.result(r.text, audio: r.audio);
   }
 
   /// Server đã kết thúc phiên: dừng mọi hoạt động, đọc lời tạm biệt, không tự kết nối lại.

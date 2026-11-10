@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hina debug</title>
+<style>
+  :root { --bg:#fff; --fg:#1d1d1f; --muted:#6b6b73; --line:#e4e4e8; --in:#e8f1ff; --ai:#f3ecff; --out:#e9f8ee; --bad:#ffe9e9; --warn:#fff6dd; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#151518; --fg:#ececf0; --muted:#9a9aa3; --line:#2c2c33; --in:#1b2840; --ai:#2a2140; --out:#1b3324; --bad:#3e1d1d; --warn:#3a3218; } }
+  body { margin:0; font:14px/1.45 system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+  header { position:sticky; top:0; background:var(--bg); border-bottom:1px solid var(--line); padding:10px 16px; display:flex; gap:16px; align-items:center; flex-wrap:wrap; z-index:1; }
+  h1 { font-size:16px; margin:0; }
+  label { color:var(--muted); }
+  main { display:grid; grid-template-columns:260px 1fr; gap:16px; padding:16px; }
+  @media (max-width:760px) { main { grid-template-columns:1fr; } }
+  .card { border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:12px; }
+  .card img { width:100%; border-radius:6px; background:var(--line); min-height:80px; }
+  .muted { color:var(--muted); font-size:12px; }
+  table { width:100%; border-collapse:collapse; }
+  td { padding:6px 8px; border-bottom:1px solid var(--line); vertical-align:top; }
+  td.t { white-space:nowrap; color:var(--muted); font-variant-numeric:tabular-nums; }
+  td.st { white-space:nowrap; font-weight:600; }
+  tr.recv td { background:var(--in); } tr.ai td { background:var(--ai); } tr.send td { background:var(--out); }
+  tr.bad td { background:var(--bad); } tr.alert td { background:var(--warn); }
+  code { font-size:12px; word-break:break-word; }
+  .rid { display:inline-block; min-width:28px; text-align:center; border-radius:6px; background:var(--line); padding:0 6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Hina debug</h1>
+  <label><input type="checkbox" id="hideAlerts" checked> Ẩn alert Safety</label>
+  <label><input type="checkbox" id="paused"> Tạm dừng</label>
+  <button id="clear">Xoá màn hình</button>
+  <span class="muted" id="status"></span>
+</header>
+<main>
+  <aside id="sessions"><p class="muted">Chưa có phiên nào kết nối.</p></aside>
+  <section>
+    <table><tbody id="rows"></tbody></table>
+  </section>
+</main>
+<script>
+const LABEL = {
+  'connect': 'Mobile kết nối', 'disconnect': 'Mobile ngắt kết nối',
+  'recv:audio': '⬇ Nhận audio', 'asr': 'ASR', 'nlu': 'NLU', 'route': 'OCR/VLM → câu trả lời',
+  'tts': 'TTS', 'send:tts': '⬆ Gửi MP3', 'send:result': '⬆ Gửi result', 'send:error': '⬆ Gửi error',
+  'send:alert': '⬆ Gửi alert', 'send:pong': '⬆ pong', 'fail': 'Lỗi xử lý',
+};
+let after = 0, hideBefore = 0;
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const time = (t) => new Date(t * 1000).toLocaleTimeString('vi-VN', {hour12:false}) + '.' + String(Math.floor(t * 1000) % 1000).padStart(3, '0');
+
+function kind(e) {
+  if (e.stage === 'fail' || e.stage === 'send:error' || e.ok === false) return 'bad';
+  if (e.stage === 'send:alert') return 'alert';
+  if (e.stage.startsWith('recv') || e.stage === 'connect') return 'recv';
+  if (e.stage.startsWith('send')) return 'send';
+  return 'ai';
+}
+
+function details(e) {
+  const skip = new Set(['seq', 't', 'sid', 'rid', 'stage', 'type', 'request_id']);
+  return Object.entries(e).filter(([k]) => !skip.has(k))
+    .map(([k, v]) => `<b>${esc(k)}</b>: ${esc(typeof v === 'object' ? JSON.stringify(v) : v)}`).join(' · ');
+}
+
+function renderSessions(sessions) {
+  const ids = Object.keys(sessions);
+  if (!ids.length) { $('sessions').innerHTML = '<p class="muted">Chưa có phiên nào gửi ảnh.</p>'; return; }
+  $('sessions').innerHTML = ids.map((sid) => {
+    const s = sessions[sid];
+    return `<div class="card"><img alt="Frame mới nhất của phiên ${esc(sid.slice(0, 8))}" src="/debug/frame/${encodeURIComponent(sid)}?t=${s.at}">
+      <div><b>${esc(sid.slice(0, 8))}</b></div>
+      <div class="muted">${s.count} frame · ${(s.bytes / 1024).toFixed(0)} KB · lúc ${time(s.at)}</div></div>`;
+  }).join('');
+}
+
+async function tick() {
+  if ($('paused').checked) return;
+  try {
+    const res = await fetch(`/debug/events?after=${after}`);
+    const data = await res.json();
+    const rows = data.events.filter((e) => e.seq > hideBefore && !($('hideAlerts').checked && e.stage === 'send:alert'));
+    for (const e of rows) {
+      const tr = document.createElement('tr');
+      tr.className = kind(e);
+      tr.innerHTML = `<td class="t">${time(e.t)}</td><td>${esc(e.sid.slice(0, 8))}</td>
+        <td>${e.rid == null ? '' : `<span class="rid">#${e.rid}</span>`}</td>
+        <td class="st">${esc(LABEL[e.stage] || e.stage)}</td><td><code>${details(e)}</code></td>`;
+      $('rows').prepend(tr);
+    }
+    if (data.events.length) after = data.events[data.events.length - 1].seq;
+    renderSessions(data.sessions);
+    $('status').textContent = 'Cập nhật ' + new Date().toLocaleTimeString('vi-VN', {hour12:false});
+  } catch (err) {
+    $('status').textContent = 'Mất kết nối tới server';
+  }
+}
+$('clear').onclick = () => { $('rows').innerHTML = ''; hideBefore = after; };
+setInterval(tick, 1000);
+tick();
+</script>
+</body>
+</html>

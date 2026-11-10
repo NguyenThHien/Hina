@@ -41,5 +41,21 @@ HINA_FPT_API_KEY=<key của bạn>
 - TTS lỗi hoặc quá hạn thì app vẫn nhận câu trả lời dạng chữ, chỉ thiếu audio.
 - Code: `server/src/hina/ai/tts/fpt.py`.
 
+### Bật VLM Google Gemini
+```
+HINA_VLM=gemini
+HINA_GEMINI_API_KEY=<key từ aistudio.google.com/apikey>
+HINA_GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta
+HINA_GEMINI_MODEL=gemini-3.5-flash
+```
+- `DESCRIBE_SCENE` → captioning (mô tả cảnh), `ANSWER_VISUAL_QUESTION` → VQA (câu ASR là câu hỏi).
+- Gemini gọi thẳng ra API (không qua hàng đợi GPU), timeout `HINA_VLM_TIMEOUT_S` (15 s). Lỗi/quá hạn → mobile nhận `error` và đọc "Có lỗi, bạn thử lại nhé".
+- **Quyền riêng tư:** ảnh camera của người dùng được gửi lên Google. Ghi rõ trong báo cáo.
+- Code: `server/src/hina/ai/vlm/gemini.py` (prompt tiếng Việt ở đầu file).
+
+### Trang debug luồng request
+Đặt `HINA_DEBUG=true` rồi mở <http://localhost:8000/debug>: mỗi request hiện theo thời gian thực các bước nhận audio → ASR → NLU → OCR/VLM → TTS → gửi MP3/result (kèm thời gian từng bước), cùng frame ảnh mới nhất của từng phiên.
+**Chỉ bật khi dev**: trang không có xác thực và hiển thị ảnh/câu nói của người dùng. Mặc định tắt (404).
+
 ### VLM tự fine-tune
 VLM hiện là stub. Khi có model: viết `server/src/hina/ai/vlm/<tên>.py` có `async def answer(self, image, question) -> str`, chạy inference trong `asyncio.to_thread` (blocking), đăng ký ở `ai/registry.py`, bật bằng `HINA_VLM=<tên>`. VLM đã đi qua hàng đợi GPU, nên Safety vẫn được ưu tiên khi dùng chung GPU.

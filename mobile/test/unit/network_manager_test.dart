@@ -1,16 +1,21 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hina_mobile/core/protocol.dart';
 import 'package:hina_mobile/network/network_manager.dart';
 import 'package:hina_mobile/network/server_event.dart';
 
 void main() {
   late HttpServer server;
   late int posts;
+  var toSend = <Object>[];
 
   setUp(() async {
     posts = 0;
+    toSend = [];
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((req) async {
       try {
@@ -24,6 +29,7 @@ void main() {
         } else if (req.uri.path == '/ws' && WebSocketTransformer.isUpgradeRequest(req)) {
           final socket = await WebSocketTransformer.upgrade(req);
           socket.listen((_) {}, onDone: socket.close);
+          toSend.forEach(socket.add);
         } else {
           req.response.statusCode = 404;
           await req.response.close();
@@ -67,5 +73,27 @@ void main() {
 
     expect(posts, 2);
     expect(network.isConnected, isTrue);
+  });
+
+  test('khung TTS trước result được gắn vào result cùng request_id', () async {
+    toSend = [
+      encodeFrame(Kind.tts, 4, Uint8List.fromList([7, 7])),
+      jsonEncode({'type': 'result', 'request_id': 4, 'intent': 'READ_TEXT', 'text': 'a'}),
+      jsonEncode({'type': 'result', 'request_id': 5, 'intent': 'READ_TEXT', 'text': 'b'}),
+    ];
+    final network = HttpWsNetworkManager('http://127.0.0.1:${server.port}');
+    addTearDown(network.close);
+    final results = <ResultEvent>[];
+    final got = Completer<void>();
+    network.events.listen((e) {
+      if (e is ResultEvent) results.add(e);
+      if (results.length == 2 && !got.isCompleted) got.complete();
+    });
+
+    await network.connect();
+    await got.future.timeout(const Duration(seconds: 5));
+
+    expect(results[0].audio, [7, 7]);
+    expect(results[1].audio, isNull);
   });
 }

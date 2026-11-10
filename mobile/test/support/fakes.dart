@@ -62,6 +62,15 @@ class FakeCapture implements AudioCapture {
 
 class FakePlayback implements AudioPlayback {
   final spoken = <String>[];
+  final played = <int>[];
+  Object? playError;
+
+  @override
+  Future<void> play(Uint8List mp3) async {
+    played.add(mp3.length);
+    if (playError case final e?) throw e;
+  }
+
   @override
   Future<void> speak(String text) async => spoken.add(text);
   @override

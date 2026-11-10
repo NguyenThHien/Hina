@@ -39,6 +39,7 @@ class HttpWsNetworkManager implements NetworkManager {
   bool _ended = false;
   int _attempt = 0;
   Timer? _retry;
+  Frame? _tts;
 
   @override
   Stream<ServerEvent> get events => _events.stream;
@@ -86,14 +87,33 @@ class HttpWsNetworkManager implements NetworkManager {
   }
 
   void _onMessage(dynamic message) {
-    if (message is! String) return; // khung TTS binary: tạm bỏ qua, app đọc text bằng TTS cục bộ
+    if (message is List<int>) {
+      _onBinary(Uint8List.fromList(message));
+      return;
+    }
+    if (message is! String) return;
     try {
       final json = jsonDecode(message);
       if (json is! Map<String, dynamic>) return;
-      final event = ServerEvent.fromJson(json);
+      var event = ServerEvent.fromJson(json);
+      if (event is ResultEvent) {
+        final tts = _tts;
+        _tts = null;
+        if (tts != null && tts.requestId == event.requestId) event = event.withAudio(tts.payload);
+      }
       if (event != null) _events.add(event);
     } on Exception {
       // message sai định dạng: bỏ qua, không làm rớt kết nối
+    }
+  }
+
+  /// Server gửi khung TTS ngay trước result cùng request_id: giữ lại để gắn vào result.
+  void _onBinary(Uint8List data) {
+    try {
+      final frame = decodeFrame(data);
+      if (frame.kind == Kind.tts) _tts = frame;
+    } on ProtocolException {
+      // khung hỏng: bỏ qua, result vẫn được đọc bằng TTS của máy
     }
   }
 

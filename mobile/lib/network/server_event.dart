@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 /// Sự kiện từ server (JSON text frame) cộng với trạng thái kết nối.
 sealed class ServerEvent {
   const ServerEvent();
@@ -49,10 +51,16 @@ class PongEvent extends ServerEvent {
 }
 
 class ResultEvent extends ServerEvent {
-  const ResultEvent({required this.requestId, required this.intent, required this.text});
+  const ResultEvent({required this.requestId, required this.intent, required this.text, this.audio});
   final int requestId;
   final String intent;
   final String text;
+
+  /// MP3 từ TTS server (khung TTS gửi ngay trước result); null thì app tự đọc [text].
+  final Uint8List? audio;
+
+  ResultEvent withAudio(Uint8List? audio) =>
+      ResultEvent(requestId: requestId, intent: intent, text: text, audio: audio);
 }
 
 class ErrorEvent extends ServerEvent {

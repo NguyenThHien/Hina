@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:hina_mobile/audio/audio_playback.dart';
 
@@ -18,7 +19,7 @@ class SpeechQueue {
   final int maxPending;
 
   final _messages = <String>[];
-  String? _result;
+  (String, Uint8List?)? _result;
   String? _danger;
   int _generation = 0;
   bool _speaking = false;
@@ -34,9 +35,10 @@ class SpeechQueue {
   }
 
   /// Kết quả mới nhất thay thế kết quả đang chờ (chưa đọc).
-  void result(String text) {
+  /// Có [audio] (MP3 từ server) thì phát audio; lỗi phát thì đọc [text] bằng TTS máy.
+  void result(String text, {Uint8List? audio}) {
     if (text.isEmpty) return;
-    _result = text;
+    _result = (text, audio);
     _schedule();
   }
 
@@ -95,10 +97,9 @@ class SpeechQueue {
           }
           continue;
         }
-        final result = _result;
-        if (result != null) {
+        if (_result case (final text, final audio)?) {
           _result = null;
-          await _playback.speak(result);
+          await _sayResult(text, audio);
           continue;
         }
         if (_messages.isEmpty) break;
@@ -106,6 +107,16 @@ class SpeechQueue {
       }
     } finally {
       _speaking = false;
+    }
+  }
+
+  Future<void> _sayResult(String text, Uint8List? audio) async {
+    if (audio == null || audio.isEmpty) return _playback.speak(text);
+    final generation = _generation;
+    try {
+      await _playback.play(audio);
+    } on Exception {
+      if (generation == _generation) await _playback.speak(text);
     }
   }
 }

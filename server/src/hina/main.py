@@ -8,7 +8,8 @@ from hina.ai.registry import build_services
 from hina.ai.scheduler import GpuScheduler
 from hina.config import Settings
 from hina.container import Container
-from hina.gateway import api, ws
+from hina.debug import DebugLog
+from hina.gateway import api, debug_view, ws
 from hina.orchestrator.router import Orchestrator
 from hina.session.store import InMemoryStore
 
@@ -22,8 +23,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     async with httpx.AsyncClient(timeout=HTTP_TIMEOUT_S) as http:
         ai = build_services(settings, http)  # bật fpt mà thiếu key thì dừng tại đây
         scheduler = GpuScheduler(settings.gpu_queue_size)
-        orchestrator = Orchestrator(ai, scheduler, tts_timeout_s=settings.tts_timeout_s)
-        app.state.container = Container(settings, InMemoryStore(), ai, scheduler, orchestrator)
+        orchestrator = Orchestrator(
+            ai, scheduler, tts_timeout_s=settings.tts_timeout_s, vlm_timeout_s=settings.vlm_timeout_s
+        )
+        debug = DebugLog(settings.debug)
+        app.state.container = Container(settings, InMemoryStore(), ai, scheduler, orchestrator, debug)
         scheduler.start()
         try:
             yield
@@ -35,6 +39,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Hina", lifespan=lifespan)
     app.include_router(api.router)
     app.include_router(ws.router)
+    app.include_router(debug_view.router)  # 404 nếu HINA_DEBUG không bật
     return app
 
 
