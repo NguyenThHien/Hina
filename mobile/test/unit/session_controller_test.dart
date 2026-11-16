@@ -17,6 +17,7 @@ void main() {
     PermissionResult request = PermissionResult.granted,
     Duration requestTimeout = const Duration(seconds: 20),
     Duration alertCooldown = const Duration(seconds: 3),
+    Duration maxListen = const Duration(seconds: 8),
   }) {
     network = FakeNetwork();
     playback = FakePlayback();
@@ -27,6 +28,7 @@ void main() {
       playback: playback,
       permissions: perms = FakePermissions(check, request),
       requestTimeout: requestTimeout,
+      maxListen: maxListen,
       alertCooldown: alertCooldown,
       dangerRepeatGap: const Duration(milliseconds: 1),
       frameInterval: const Duration(hours: 1), // tắt vòng gửi frame định kỳ trong test
@@ -36,8 +38,9 @@ void main() {
   Future<SessionController> started({
     Duration requestTimeout = const Duration(seconds: 20),
     Duration alertCooldown = const Duration(seconds: 3),
+    Duration maxListen = const Duration(seconds: 8),
   }) async {
-    final c = build(requestTimeout: requestTimeout, alertCooldown: alertCooldown);
+    final c = build(requestTimeout: requestTimeout, alertCooldown: alertCooldown, maxListen: maxListen);
     await c.start();
     network.emit(const ConnectedEvent());
     await settle();
@@ -116,6 +119,19 @@ void main() {
     await settle();
     expect(c.state, SessionState.ready);
     expect(playback.spoken.last, 'Nhà thuốc');
+  });
+
+  test('sends the question frame at activation and audio by itself when time is up', () async {
+    final c = await started(maxListen: const Duration(milliseconds: 30));
+    addTearDown(c.dispose);
+
+    await c.toggleListening();
+    expect(network.sent, ['image:1']); // ảnh đi ngay, chưa có audio
+    expect(c.state, SessionState.listening);
+
+    await settle(60);
+    expect(network.sent, ['image:1', 'audio:1']);
+    expect(c.state, SessionState.waiting);
   });
 
   test('disconnect announces once even if retries keep failing', () async {

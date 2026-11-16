@@ -24,8 +24,7 @@ enum SessionState {
 
 const _askPermissionMessage =
     'Hina cần camera để nhìn đường và micro để nghe bạn. Vào Cài đặt, chọn Quản lý quyền truy cập.';
-const _blockedMessage =
-    'Quyền camera hoặc micro đang bị chặn. Vào Cài đặt, chọn Quản lý quyền truy cập.';
+const _blockedMessage = 'Quyền camera hoặc micro đang bị chặn. Vào Cài đặt, chọn Quản lý quyền truy cập.';
 
 /// Khối điều phối trung tâm: quyết định khi nào thu âm, chụp ảnh, gửi, đọc kết quả.
 class SessionController extends ChangeNotifier {
@@ -36,7 +35,7 @@ class SessionController extends ChangeNotifier {
     required this.playback,
     required this.permissions,
     this.voice,
-    this.maxListen = const Duration(seconds: 15),
+    this.maxListen = const Duration(seconds: 8), // ~6 s nói + 2 s đệm
     this.requestTimeout = const Duration(seconds: 20),
     this.frameInterval = const Duration(milliseconds: 700),
     this.alertCooldown = const Duration(seconds: 3),
@@ -63,6 +62,8 @@ class SessionController extends ChangeNotifier {
   String _message = 'Đang khởi động';
   int _nextRequestId = 1;
   int? _pendingId;
+  int? _listenId; // id của câu hỏi đang thu
+  int? _frameFor; // frame kế tiếp gửi đi mang id câu hỏi này
   bool _paused = false;
   bool _booted = false;
   bool _capturingFrame = false;
@@ -151,10 +152,10 @@ class SessionController extends ChangeNotifier {
       _booted = true;
       _eventSub = network.events.listen(_onEvent);
       _wakeSub = voice?.onWake.listen((_) {
-        if (_state == SessionState.ready) unawaited(toggleListening());
+        if (_state == SessionState.ready && !_paused && !_speech.isSpeaking) unawaited(toggleListening());
       });
-      await voice?.start();
     }
+    await voice?.start();
     await camera.start();
     if (!network.isConnected) await network.connect();
   }
@@ -163,6 +164,7 @@ class SessionController extends ChangeNotifier {
     if (_paused) return;
     _paused = true;
     _stopFrames();
+    await voice?.stop(); // không nghe khi app ở nền
     await camera.stop();
   }
 
@@ -177,6 +179,7 @@ class SessionController extends ChangeNotifier {
     }
     if (!_paused) return;
     _paused = false;
+    await voice?.start();
     await camera.start();
     if (network.isConnected) _startFrames();
   }
@@ -189,8 +192,11 @@ class SessionController extends ChangeNotifier {
       _fail('Không thu được âm thanh.');
       return;
     }
-    _set(SessionState.listening, 'Đang ghi âm, bấm Dừng ghi âm để gửi');
+    _listenId = _frameFor = _nextRequestId++;
+    _set(SessionState.listening, 'Đang ghi âm, tự gửi sau ${maxListen.inSeconds} giây');
     _listenCap = Timer(maxListen, () => unawaited(_finishListening()));
+    // Ảnh của câu hỏi chụp ngay lúc kích hoạt; nếu đang chụp dở thì khung đó mang id.
+    await _sendFrame();
   }
 
   Future<void> _finishListening() async {
@@ -198,9 +204,10 @@ class SessionController extends ChangeNotifier {
     _listenCap?.cancel();
     _set(SessionState.waiting, 'Đang xử lý'); // chặn gọi lặp trong lúc await
     final audio = await capture.stop();
-    final image = await _captureOrNull();
+    final id = _listenId;
+    _listenId = _frameFor = null;
     if (_state != SessionState.waiting) return; // rớt mạng trong lúc chờ
-    if (audio.isEmpty) {
+    if (audio.isEmpty || id == null) {
       _set(SessionState.ready, 'Sẵn sàng');
       return;
     }
@@ -208,9 +215,7 @@ class SessionController extends ChangeNotifier {
       _onDisconnected();
       return;
     }
-    final id = _nextRequestId++;
     _pendingId = id;
-    if (image != null) network.sendImage(id, image); // ảnh mới nhất cho request này
     network.sendAudio(id, audio);
     _timeout = Timer(requestTimeout, _onTimeout);
   }
@@ -219,6 +224,7 @@ class SessionController extends ChangeNotifier {
   Future<void> cancelListening() async {
     if (_state != SessionState.listening) return;
     _listenCap?.cancel();
+    _listenId = _frameFor = null;
     _set(SessionState.ready, 'Sẵn sàng');
     await capture.stop();
   }
@@ -279,6 +285,7 @@ class SessionController extends ChangeNotifier {
     _set(SessionState.ended, text);
     unawaited(_speech.sayNow(text));
     unawaited(network.endSession());
+    unawaited(voice?.stop());
     unawaited(camera.stop());
   }
 
@@ -331,7 +338,10 @@ class SessionController extends ChangeNotifier {
     _capturingFrame = true;
     try {
       final image = await _captureOrNull();
-      if (image != null) network.sendImage(0, image);
+      if (image == null) return;
+      // Frame đầu sau khi kích hoạt là ảnh của câu hỏi; còn lại (id 0) chỉ cho Safety.
+      network.sendImage(_frameFor ?? 0, image);
+      _frameFor = null;
     } finally {
       _capturingFrame = false;
     }

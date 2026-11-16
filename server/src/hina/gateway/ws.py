@@ -67,6 +67,7 @@ async def ws_endpoint(ws: WebSocket) -> None:
     safety = SafetyMonitor(c.ai.detector, c.ai.depth, c.scheduler, out.json)
     background = {asyncio.create_task(safety.run())}
     latest_image: bytes | None = None
+    asked_image: tuple[int, bytes | None] = (0, None)
     try:
         while True:
             msg = await ws.receive()
@@ -80,12 +81,16 @@ async def ws_endpoint(ws: WebSocket) -> None:
                     continue
                 if kind is Kind.IMAGE:
                     latest_image = payload
+                    if rid:  # ảnh chụp lúc kích hoạt câu hỏi rid; frame Safety (id 0) không đè được
+                        asked_image = (rid, payload)
                     safety.submit(payload)
                     dbg.frame(sid, payload)
                 elif kind is Kind.AUDIO:
-                    image_bytes = len(latest_image) if latest_image else 0
+                    image = asked_image[1] if asked_image[0] == rid else latest_image
+                    asked_image = (0, None)
+                    image_bytes = len(image) if image else 0
                     dbg.add(sid, rid, "recv:audio", bytes=len(payload), image_bytes=image_bytes)
-                    task = asyncio.create_task(_answer(c, out, sid, rid, payload, latest_image))
+                    task = asyncio.create_task(_answer(c, out, sid, rid, payload, image))
                     background.add(task)
                     task.add_done_callback(background.discard)
                 else:

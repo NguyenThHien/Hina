@@ -91,3 +91,13 @@ def test_unknown_intent_asks_to_repeat_and_keeps_connection(client, session):
         assert ws.receive_json()["intent"] == "UNKNOWN"
         ws.send_text('{"type":"ping"}')
         assert ws.receive_json() == {"type": "pong"}
+
+
+def test_question_uses_frame_sent_at_activation_not_later_safety_frames(client, session):
+    with client.websocket_connect("/ws", headers=session["headers"]) as ws:
+        ws.send_bytes(encode_frame(Kind.IMAGE, 5, b"asked-frame"))  # lúc kích hoạt
+        ws.send_bytes(encode_frame(Kind.IMAGE, 0, b"safety"))  # frame Safety trong 8 s thu âm
+        ws.send_bytes(encode_frame(Kind.AUDIO, 5, "đọc giúp tôi chữ".encode()))
+        _collect(ws, lambda m: {"result"} <= set(_types(m)))
+    audio = next(e for e in client.get("/debug/events").json()["events"] if e["stage"] == "recv:audio")
+    assert audio["image_bytes"] == len(b"asked-frame")

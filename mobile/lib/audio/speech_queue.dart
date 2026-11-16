@@ -25,6 +25,9 @@ class SpeechQueue {
   bool _speaking = false;
   bool _scheduled = false;
 
+  /// Loa đang đọc: lúc này mic nghe cả tiếng Hina nên không kích hoạt bằng giọng nói.
+  bool get isSpeaking => _speaking || _scheduled;
+
   /// Ngắt lời đang đọc, đọc cảnh báo mới ngay và lặp lại.
   void danger(String text) {
     if (text.isEmpty) return;

@@ -22,29 +22,7 @@ class CameraScreen extends StatelessWidget {
           hint: 'Hướng camera đến điều bạn muốn quan sát.',
         ),
         const SizedBox(height: 18),
-        ExcludeSemantics(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(20),
-            child: Container(
-              height: 275,
-              color: const Color(0xFFF5E7ED),
-              child: Stack(fit: StackFit.expand, children: [
-                Center(child: camera.preview()),
-                // Khung ngắm: gợi ý đặt vật cần xem vào giữa.
-                FractionallySizedBox(
-                  widthFactor: 0.58,
-                  heightFactor: 0.45,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.white, width: 2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ]),
-            ),
-          ),
-        ),
+        CameraBox(camera: camera),
         const SizedBox(height: 12),
         const Text(
           'Hina vẫn cảnh báo vật cản kể cả khi bạn không hỏi.',
@@ -52,6 +30,40 @@ class CameraScreen extends StatelessWidget {
           style: TextStyle(fontSize: 12),
         ),
       ],
+    );
+  }
+}
+
+/// Ô camera có khung ngắm; dùng ở màn Camera và màn Ghi âm.
+class CameraBox extends StatelessWidget {
+  const CameraBox({super.key, required this.camera});
+
+  final CameraManager camera;
+
+  @override
+  Widget build(BuildContext context) {
+    return ExcludeSemantics(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          height: 275,
+          color: const Color(0xFFF5E7ED),
+          child: Stack(fit: StackFit.expand, children: [
+            Center(child: camera.preview()),
+            // Khung ngắm: gợi ý đặt vật cần xem vào giữa.
+            FractionallySizedBox(
+              widthFactor: 0.58,
+              heightFactor: 0.45,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.white, width: 2),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ]),
+        ),
+      ),
     );
   }
 }

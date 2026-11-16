@@ -26,12 +26,14 @@ class _HinaAppState extends State<HinaApp> with WidgetsBindingObserver {
   SessionController get _c => widget.controller;
   AppPrefs get _prefs => widget.prefs;
   late final bool _onboarded = _prefs.onboarded; // màn gốc chỉ chọn một lần lúc mở app
+  final _nav = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _prefs.addListener(_syncVoice);
+    _c.addListener(_openRecordOnWake);
     _syncVoice();
     // Lần đầu: để màn Giới thiệu/Cấp quyền gọi start(), tránh app tự đọc lời xin quyền.
     if (_onboarded) unawaited(_c.start());
@@ -39,10 +41,17 @@ class _HinaAppState extends State<HinaApp> with WidgetsBindingObserver {
 
   void _syncVoice() => _c.voiceGuide = _prefs.voiceGuide;
 
+  /// VAD kích hoạt ở màn khác: mở màn Ghi âm (ô camera + đồng hồ thu).
+  void _openRecordOnWake() {
+    if (_c.state != SessionState.listening || RecordScreen.isOpen) return;
+    unawaited(_nav.currentState?.pushNamed(Routes.record));
+  }
+
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _prefs.removeListener(_syncVoice);
+    _c.removeListener(_openRecordOnWake);
     _c.dispose();
     super.dispose();
   }
@@ -63,6 +72,7 @@ class _HinaAppState extends State<HinaApp> with WidgetsBindingObserver {
       listenable: _prefs,
       builder: (context, _) => MaterialApp(
         title: 'Hina',
+        navigatorKey: _nav,
         theme: hinaTheme(_prefs),
         // Cỡ chữ trong app nhân thêm với cỡ chữ hệ thống, không thay thế nó.
         builder: (context, child) {

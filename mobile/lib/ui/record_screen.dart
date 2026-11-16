@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:hina_mobile/session/session_controller.dart';
+import 'package:hina_mobile/ui/camera_screen.dart';
 import 'package:hina_mobile/ui/theme.dart';
 import 'package:hina_mobile/ui/widgets.dart';
 
@@ -11,26 +12,42 @@ class RecordScreen extends StatefulWidget {
 
   final SessionController controller;
 
+  static bool get isOpen => _RecordScreenState.open > 0;
+
   @override
   State<RecordScreen> createState() => _RecordScreenState();
 }
 
 class _RecordScreenState extends State<RecordScreen> {
+  /// Số màn Ghi âm đang mở; app dựa vào đây để không mở chồng khi VAD kích hoạt.
+  static int open = 0;
+
   final _clock = Stopwatch();
   Timer? _tick;
   bool _asked = false; // đã hỏi ít nhất một lần: nút đổi thành "Ghi âm lại"
   bool _leaving = false;
+  bool _started = false; // vào màn là tự bắt đầu thu một lần
 
   SessionController get _c => widget.controller;
 
   @override
   void initState() {
     super.initState();
+    open++;
     _c.addListener(_onState);
+    if (_c.state == SessionState.listening) _startClock(); // VAD đã kích hoạt trước khi màn mở
+    WidgetsBinding.instance.addPostFrameCallback((_) => _autoStart());
+  }
+
+  void _autoStart() {
+    if (_started || !mounted || _c.state != SessionState.ready) return;
+    _started = true;
+    unawaited(_c.toggleListening());
   }
 
   @override
   void dispose() {
+    open--;
     _c.removeListener(_onState);
     _tick?.cancel();
     // Rời màn giữa chừng: bỏ đoạn đang thu. Chạy sau frame vì nó báo listener khác.
@@ -40,17 +57,23 @@ class _RecordScreenState extends State<RecordScreen> {
 
   void _onState() {
     if (_c.state == SessionState.listening && !_clock.isRunning) {
-      _clock
-        ..reset()
-        ..start();
-      _tick = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+      _startClock();
     } else if (_c.state != SessionState.listening && _clock.isRunning) {
       _clock.stop();
       _tick?.cancel();
       _asked = true;
     }
     if (_c.state == SessionState.ended) _leave();
+    if (!_started) WidgetsBinding.instance.addPostFrameCallback((_) => _autoStart());
     setState(() {});
+  }
+
+  void _startClock() {
+    _started = true; // đang thu rồi thì không tự bắt đầu thêm lần nữa
+    _clock
+      ..reset()
+      ..start();
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
   }
 
   /// Phiên đã kết thúc: đóng màn Ghi âm sau frame để không đụng Navigator khi đang build.
@@ -66,9 +89,10 @@ class _RecordScreenState extends State<RecordScreen> {
         SessionState.ready => (_asked ? 'Ghi âm lại' : 'Bắt đầu ghi âm', _c.toggleListening),
         SessionState.listening => ('Dừng ghi âm', _c.toggleListening),
         SessionState.waiting => ('Hina đang trả lời', null),
-        SessionState.needsPermission ||
-        SessionState.permissionBlocked =>
-          ('Cấp quyền', () => goTo(context, Routes.permissions)),
+        SessionState.needsPermission || SessionState.permissionBlocked => (
+            'Cấp quyền',
+            () => goTo(context, Routes.permissions)
+          ),
         SessionState.init => ('Đang kết nối', null),
         SessionState.disconnected => ('Đang kết nối lại', null),
         SessionState.error => ('Có lỗi, thử lại sau', null),
@@ -80,7 +104,7 @@ class _RecordScreenState extends State<RecordScreen> {
     final listening = _c.state == SessionState.listening;
     final (label, action) = _mainAction();
     final s = _clock.elapsed.inSeconds;
-    final time = '${(s ~/ 60).toString().padLeft(2, '0')}:${(s % 60).toString().padLeft(2, '0')}';
+    final time = '00:${s.toString().padLeft(2, '0')} / 00:${_c.maxListen.inSeconds.toString().padLeft(2, '0')}';
     return HinaPage(
       route: Routes.record,
       actions: [
@@ -88,11 +112,9 @@ class _RecordScreenState extends State<RecordScreen> {
         HinaButton('Về trang chủ', kind: ButtonKind.ghost, onPressed: () => goTo(context, Routes.home)),
       ],
       children: [
-        const SizedBox(height: 19),
-        const HinaHeading('Mình đang lắng nghe bạn.', hint: 'Nói điều bạn cần Hina giúp nhé.'),
-        const SizedBox(height: 32),
-        const _MicCircle(),
-        const SizedBox(height: 19),
+        const SizedBox(height: 14),
+        CameraBox(camera: _c.camera),
+        const SizedBox(height: 14),
         Semantics(
           label: 'Thời gian ghi âm $s giây',
           excludeSemantics: true,
@@ -103,35 +125,6 @@ class _RecordScreenState extends State<RecordScreen> {
         // Câu trả lời đã được đọc bằng giọng nói; hiện chữ cho người còn thị lực một phần.
         Text(_c.message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, height: 1.6)),
       ],
-    );
-  }
-}
-
-class _MicCircle extends StatelessWidget {
-  const _MicCircle();
-
-  @override
-  Widget build(BuildContext context) {
-    final c = HinaColors.of(context);
-    return ExcludeSemantics(
-      child: Center(
-        child: Container(
-          width: 170,
-          height: 170,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: const Color(0xFFF7E4EE),
-            border: Border.all(color: const Color(0xFFEFD8E4)),
-          ),
-          alignment: Alignment.center,
-          child: Container(
-            width: 121,
-            height: 121,
-            decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white),
-            child: Icon(Icons.mic_none, size: 43, color: c.ink),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -197,9 +190,7 @@ class _WaveState extends State<_Wave> with SingleTickerProviderStateMixin {
                   margin: const EdgeInsets.symmetric(horizontal: 2),
                   width: 4,
                   // Lệch pha theo vị trí, giống nth-child(2n/3n) trong prototype.
-                  height: widget.active
-                      ? 13 + 36 * (0.5 + 0.5 * math.sin(2 * math.pi * (_anim.value + i / 7)))
-                      : 13,
+                  height: widget.active ? 13 + 36 * (0.5 + 0.5 * math.sin(2 * math.pi * (_anim.value + i / 7))) : 13,
                   decoration: BoxDecoration(color: c.accent, borderRadius: BorderRadius.circular(5)),
                 ),
             ],
