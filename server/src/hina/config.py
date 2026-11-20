@@ -17,7 +17,27 @@ class Settings(BaseSettings):
     detector: str = "stub"
     depth: str = "stub"
     vlm: str = "stub"  # model VLM tự fine-tune sẽ đăng ký ở đây
-    tts: str = "stub"  # "fpt"
+    tts: str = "stub"  # "fpt" | "mms"
+    text_detector: str = "stub"  # "ppocr"
+
+    # Model tự host (xem D:/<model>-api): URL + X-API-Key. Cùng mạng docker thì dùng http://<container>:8000.
+    phowhisper_url: str = "https://stt.frshdrp.vn"
+    phowhisper_api_key: SecretStr | None = None
+    asr_timeout_s: float = 30
+    ppocr_url: str = "https://ocr-det.frshdrp.vn"
+    ppocr_api_key: SecretStr | None = None
+    vietocr_url: str = "https://ocr.frshdrp.vn"
+    vietocr_api_key: SecretStr | None = None
+    ocr_timeout_s: float = 10  # dùng cho cả ppocr và vietocr
+    yolo_url: str = "https://yolo.frshdrp.vn"
+    yolo_api_key: SecretStr | None = None
+    yolo_conf: float = 0.35
+    detector_timeout_s: float = 5
+    smolvlm_url: str = "https://vlm.frshdrp.vn"
+    smolvlm_api_key: SecretStr | None = None
+    smolvlm_max_tokens: int = 48  # ~1 s/token trên CPU
+    mms_url: str = "https://tts.frshdrp.vn"
+    mms_api_key: SecretStr | None = None
 
     # NLU qua API ngoài (HINA_NLU=http).
     nlu_url: str = "https://nlu.frshdrp.vn"

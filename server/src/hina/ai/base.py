@@ -1,4 +1,4 @@
-"""Interface mỏng cho 7 khối AI. Orchestrator/Safety chỉ biết các Protocol này."""
+"""Interface mỏng cho 8 khối AI. Orchestrator/Safety chỉ biết các Protocol này."""
 
 from dataclasses import dataclass, field
 from enum import IntEnum
@@ -71,3 +71,4 @@ class AiServices:
     depth: Depth
     vlm: VLM
     tts: TTS
+    text_detector: Detector  # vùng chữ cho READ_TEXT; `detector` là vật cản cho Safety

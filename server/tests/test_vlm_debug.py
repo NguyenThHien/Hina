@@ -110,7 +110,9 @@ def test_describe_is_caption_and_visual_question_passes_text(intent, question):
     from hina.orchestrator.router import Orchestrator
 
     vlm = _RecordingVLM()
-    ai = AiServices(StubASR(), _FixedNLU(intent), StubOCR(), StubDetector(), StubDepth(), vlm, StubTTS())
+    ai = AiServices(
+        StubASR(), _FixedNLU(intent), StubOCR(), StubDetector(), StubDepth(), vlm, StubTTS(), StubDetector()
+    )
     notes: list[str] = []
 
     async def main():

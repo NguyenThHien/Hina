@@ -35,9 +35,9 @@ class Reply:
 class Orchestrator:
     """audio -> ASR -> NLU -> route theo intent -> Aggregator -> TTS.
 
-    Model chạy trên GPU của nhóm (ASR, OCR, Detection, Depth, VLM tự fine-tune) đi qua
-    GpuScheduler để Safety được ưu tiên. NLU, TTS và VLM qua API (impl có `remote = True`, vd
-    Gemini) gọi thẳng: scheduler chạy tuần tự, chờ mạng ở đó sẽ chặn Safety.
+    Model chạy tại chỗ đi qua GpuScheduler để Safety được ưu tiên. Impl gọi API qua mạng
+    (`remote = True`: Gemini, các *-api tự host) và NLU, TTS gọi thẳng: scheduler chạy tuần tự,
+    chờ mạng ở đó sẽ chặn Safety.
     """
 
     def __init__(
@@ -56,7 +56,7 @@ class Orchestrator:
     async def handle(self, audio: bytes, image: bytes | None, note: Note = _noop) -> Reply:
         ai = self._ai
         t = time.perf_counter()
-        text = await self._gpu(partial(ai.asr.transcribe, audio))
+        text = await self._run(ai.asr, partial(ai.asr.transcribe, audio))
         note("asr", text=text, ms=_ms(t))
         t = time.perf_counter()
         nlu = await ai.nlu.parse(text)
@@ -88,12 +88,15 @@ class Orchestrator:
 
     async def _read_text(self, image: bytes) -> str:
         ai = self._ai
-        dets = await self._gpu(partial(ai.detector.detect, image))
+        dets = await self._run(ai.text_detector, partial(ai.text_detector.detect, image))
         boxes = [
             d.box
             for d in sorted(dets, key=lambda d: area(d.box), reverse=True)
             if d.confidence >= MIN_BOX_CONFIDENCE
         ][:MAX_READ_BOXES]
+        # Chọn theo diện tích, đọc theo thứ tự trên -> dưới, trái -> phải.
+        # ponytail: so y1 làm tròn 0.1; chữ cùng dòng lệch cao nhiều có thể đảo, cần thì gom dòng theo tâm y.
+        boxes.sort(key=lambda b: (round(b[1], 1), b[0]))
         crops: list[bytes] = []
         for box in boxes:
             try:
@@ -101,12 +104,16 @@ class Orchestrator:
             except (CropError, OSError):
                 log.warning("crop failed for box %s", box, exc_info=True)
         if not crops:
-            return await self._gpu(partial(ai.ocr.read, image))
-        texts = await asyncio.gather(*(self._gpu(partial(ai.ocr.read, c)) for c in crops))
+            return await self._run(ai.ocr, partial(ai.ocr.read, image))
+        texts = await asyncio.gather(*(self._run(ai.ocr, partial(ai.ocr.read, c)) for c in crops))
         parts = [t.strip() for t in texts if t.strip()]
         if len(parts) == 1:
             return parts[0]
         return "\n".join(f"{i}) {t}" for i, t in enumerate(parts, 1))
+
+    async def _run(self, svc: object, fn):
+        """Impl `remote = True` (API qua mạng) gọi thẳng; model chạy tại chỗ xếp hàng GpuScheduler."""
+        return await (fn() if getattr(svc, "remote", False) else self._gpu(fn))
 
     async def _vlm(self, image: bytes, question: str | None) -> str:
         vlm = self._ai.vlm

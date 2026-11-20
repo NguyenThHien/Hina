@@ -20,7 +20,7 @@ uv run ruff check .
 ```
 Hoặc `cp .env.example .env`, điền secret, rồi `docker compose up --build`.
 
-Mặc định mọi khối AI là stub (`HINA_ASR=stub`, …). Thêm model thật: viết impl theo Protocol trong `server/src/hina/ai/base.py`, đăng ký ở `ai/registry.py`, đổi biến môi trường.
+Code mặc định mọi khối AI là stub (`HINA_ASR=stub`, …); `.env.example` bật các model tự host bên dưới. Thêm model thật: viết impl theo Protocol trong `server/src/hina/ai/base.py`, đăng ký ở `ai/registry.py`, đổi biến môi trường.
 
 ### Bật NLU thật
 ```
@@ -29,6 +29,30 @@ HINA_NLU_URL=https://nlu.frshdrp.vn
 HINA_NLU_TIMEOUT_S=5
 ```
 Server gọi `POST {HINA_NLU_URL}/v1/predict` với `{"text": "<câu ASR>"}` và đọc `label_id` (1–5). Lỗi mạng/timeout/nhãn lạ → `UNKNOWN` (hỏi lại), không làm hỏng phiên.
+
+### Bật model tự host (mặc định trong `.env.example`)
+Mỗi model là một API riêng (image `obito05/*-api`, header `X-API-Key`). Điền key vào `server/.env`:
+
+| Khối | `.env` | URL mặc định | Key |
+|---|---|---|---|
+| ASR | `HINA_ASR=phowhisper` | `https://stt.frshdrp.vn` | `HINA_PHOWHISPER_API_KEY` |
+| Vùng chữ (READ_TEXT) | `HINA_TEXT_DETECTOR=ppocr` | `https://ocr-det.frshdrp.vn` | `HINA_PPOCR_API_KEY` |
+| OCR | `HINA_OCR=vietocr` | `https://ocr.frshdrp.vn` | `HINA_VIETOCR_API_KEY` |
+| Vật cản (Safety) | `HINA_DETECTOR=yolo` | `https://yolo.frshdrp.vn` | `HINA_YOLO_API_KEY` |
+| Khoảng cách | `HINA_DEPTH=none` | (chưa có model: dùng diện tích bbox) | |
+| VLM | `HINA_VLM=smolvlm` | `https://vlm.frshdrp.vn` | `HINA_SMOLVLM_API_KEY` |
+| TTS | `HINA_TTS=mms` | `https://tts.frshdrp.vn` | `HINA_MMS_API_KEY` |
+
+- Thiếu key của model đang bật thì server dừng ngay khi khởi động và báo tên biến.
+- Server Hina chạy cùng mạng docker `freshdrip` thì đổi URL thành `http://<container>:8000` (vd `http://vietocr-api:8000`) để khỏi đi vòng qua Cloudflare.
+- Các impl này có `remote = True`: gọi thẳng, không xếp hàng `GpuScheduler`, nên chờ mạng không chặn Safety.
+- Mobile gửi PCM16 thô; server bọc thành WAV (`preprocess/audio.py`) trước khi gửi PhoWhisper.
+- Đổi lại Gemini/FPT: `HINA_VLM=gemini` (+ `HINA_VLM_TIMEOUT_S=15`), `HINA_TTS=fpt`.
+
+**Giới hạn:**
+- SmolVLM-256M chỉ trả lời tiếng Anh, có thể không hiểu câu hỏi tiếng Việt; MMS đọc câu tiếng Anh bằng giọng Việt nên khó nghe. Trên CPU mỗi câu ~50 s (`HINA_VLM_TIMEOUT_S=90`); qua domain Cloudflare sẽ bị cắt ở 100 s.
+- `HINA_DEPTH=none`: cảnh báo vật cản chỉ dựa trên bbox chiếm ≥ 30% khung hình, không có số mét.
+- License: VietOCR fine-tune trên VinText (chỉ nghiên cứu), MMS-TTS (CC-BY-NC 4.0), YOLO11 (AGPL-3.0). Dùng cho đồ án được, không dùng thương mại.
 
 ### Bật TTS thật (FPT.AI)
 Điền vào `server/.env` (xem `.env.example`):

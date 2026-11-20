@@ -46,11 +46,14 @@ class SafetyMonitor:
             if alert:
                 await self._emit(alert)
 
+    async def _run(self, svc: object, fn):
+        """Impl `remote = True` gọi thẳng; model tại chỗ xếp hàng GpuScheduler với ưu tiên SAFETY."""
+        return await (fn() if getattr(svc, "remote", False) else self._scheduler.run(SAFETY, fn))
+
     async def _assess(self, frame: bytes) -> dict | None:
-        run = self._scheduler.run
-        dets = await run(SAFETY, partial(self._detector.detect, frame))
+        dets = await self._run(self._detector, partial(self._detector.detect, frame))
         hazards = [d for d in dets if d.label in HAZARD_LABELS]
         dists = await asyncio.gather(
-            *(run(SAFETY, partial(self._depth.distance_m, frame, d.box)) for d in hazards)
+            *(self._run(self._depth, partial(self._depth.distance_m, frame, d.box)) for d in hazards)
         )
         return assess(list(zip(hazards, dists, strict=True)))

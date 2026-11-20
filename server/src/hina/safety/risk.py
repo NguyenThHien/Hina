@@ -2,7 +2,7 @@ from hina.ai.base import Detection
 from hina.geometry import area, direction
 
 HAZARD_LABELS = frozenset(
-    {"person", "motorcycle", "car", "bicycle", "pole", "pothole", "stairs", "bin", "fence"}
+    {"person", "motorcycle", "car", "bicycle", "bus", "truck", "pole", "pothole", "stairs", "bin", "fence"}
 )
 DANGER_M = 1.0
 WARNING_M = 2.0

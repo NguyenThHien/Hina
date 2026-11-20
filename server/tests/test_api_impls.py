@@ -122,7 +122,7 @@ class FailingTTS:
 def services(**overrides) -> AiServices:
     base = dict(
         asr=StubASR(), nlu=StubNLU(), ocr=StubOCR(), detector=StubDetector(),
-        depth=StubDepth(), vlm=StubVLM(), tts=StubTTS(),
+        depth=StubDepth(), vlm=StubVLM(), tts=StubTTS(), text_detector=StubDetector(),
     )
     return AiServices(**{**base, **overrides})
 
@@ -303,20 +303,20 @@ def run_orch(audio: str, image: bytes | None, **overrides):
 
 def test_read_text_ocrs_each_crop_and_numbers_results():
     ocr = SizeOCR()
-    reply = run_orch("đọc giúp tôi", png(100, 100), detector=TwoBoxDetector(), ocr=ocr)
+    reply = run_orch("đọc giúp tôi", png(100, 100), text_detector=TwoBoxDetector(), ocr=ocr)
     assert ocr.sizes == [(40, 40), (40, 40)]
     assert reply.text == "1) text1\n2) text2"
 
 
 def test_read_text_falls_back_to_full_frame_without_boxes():
     ocr = SizeOCR()
-    reply = run_orch("đọc giúp tôi", png(100, 100), detector=EmptyDetector(), ocr=ocr)
+    reply = run_orch("đọc giúp tôi", png(100, 100), text_detector=EmptyDetector(), ocr=ocr)
     assert ocr.sizes == [(100, 100)] and reply.text == "text1"
 
 
 def test_read_text_filters_low_confidence_boxes():
     ocr = SizeOCR()
-    run_orch("đọc giúp tôi", png(100, 100), detector=LowConfDetector(), ocr=ocr)
+    run_orch("đọc giúp tôi", png(100, 100), text_detector=LowConfDetector(), ocr=ocr)
     assert ocr.sizes == [(100, 100)]
 
 
@@ -325,7 +325,7 @@ def test_read_text_crop_failure_falls_back(monkeypatch):
         raise CropError("cannot crop")
 
     monkeypatch.setattr("hina.orchestrator.router.crop", boom)
-    reply = run_orch("đọc giúp tôi", png(100, 100), detector=TwoBoxDetector(), ocr=SizeOCR())
+    reply = run_orch("đọc giúp tôi", png(100, 100), text_detector=TwoBoxDetector(), ocr=SizeOCR())
     assert reply.text == "text1"
 
 
